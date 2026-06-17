@@ -38,7 +38,13 @@ public enum ErrorCode {
     // 通用业务
     DATA_NOT_FOUND(1020, "数据不存在"),
     OPERATION_FAILED(1021, "操作失败"),
-    PARAM_INVALID(1022, "参数校验失败");
+    PARAM_INVALID(1022, "参数校验失败"),
+
+    // 模型相关(FR-02)
+    MODEL_REFERENCED(1023, "模型已被评测引用,无法删除"),
+    MODEL_NOT_FOUND(1024, "模型不存在"),
+    MODEL_API_KEY_INVALID(1025, "API Key 无效"),
+    MODEL_TEST_FAILED(1026, "模型连接测试失败");
 
     private final Integer code;
     private final String message;

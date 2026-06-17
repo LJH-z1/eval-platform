@@ -89,7 +89,18 @@ onMounted(load)
 </script>
 
 <template>
-  <div>
+  <div class="page-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <h2 class="page-title">📝 问题管理</h2>
+        <p class="page-subtitle">评测题目库 · 支持单题录入 / 批量导入 CSV</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <el-button :icon="'Upload'" @click="router.push({ name: 'question-import' })">批量导入</el-button>
+        <el-button type="primary" :icon="'Plus'" @click="onCreate">新建问题</el-button>
+      </div>
+    </div>
+
     <el-card shadow="never">
       <el-form :inline="true" :model="query" @submit.prevent>
         <el-form-item label="分类">

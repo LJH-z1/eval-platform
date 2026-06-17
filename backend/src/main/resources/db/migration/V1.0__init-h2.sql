@@ -45,3 +45,57 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail VARCHAR(500),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- model_config(FR-02)
+CREATE TABLE IF NOT EXISTS model_config (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL UNIQUE,
+  provider VARCHAR(20) NOT NULL,
+  api_key VARCHAR(500) NOT NULL,
+  endpoint VARCHAR(500),
+  model_version VARCHAR(100),
+  temperature DECIMAL(3,2) DEFAULT 0.70,
+  top_p DECIMAL(3,2) DEFAULT 0.90,
+  max_tokens INT DEFAULT 2048,
+  price_per_k DECIMAL(10,4),
+  status TINYINT NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- evaluation(FR-04 占位,FR-02 删除引用检查依赖此表存在性探测)
+CREATE TABLE IF NOT EXISTS evaluation (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  question_ids TEXT,
+  model_ids TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  created_by BIGINT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- answer(FR-04 占位)
+CREATE TABLE IF NOT EXISTS answer (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  evaluation_id BIGINT NOT NULL,
+  question_id BIGINT NOT NULL,
+  model_id BIGINT NOT NULL,
+  content TEXT,
+  latency_ms BIGINT,
+  token_count INT,
+  status VARCHAR(20),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- score(FR-05 占位) — value 是 H2 关键字,改名 score_value
+CREATE TABLE IF NOT EXISTS score (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  answer_id BIGINT NOT NULL,
+  dimension VARCHAR(50) NOT NULL,
+  score_value DECIMAL(4,2),
+  scorer_id BIGINT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+SELECT 'init-h2 done' AS status;

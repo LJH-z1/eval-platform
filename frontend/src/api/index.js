@@ -8,13 +8,16 @@ export function changePassword(data) { return request.post('/auth/change-passwor
 export function pageUsers(params) { return request.get('/users', { params }) }
 export function disableUser(id) { return request.post(`/users/${id}/disable`) }
 
-// ====== FR-02 model(由向锏楠实现) ======
+// ====== FR-02 model(由向锏楠实现 ✅) ======
 export function pageModels(params) { return request.get('/models', { params }) }
 export function listEnabledModels() { return request.get('/models/enabled') }
+export function getModel(id) { return request.get(`/models/${id}`) }
 export function createModel(data) { return request.post('/models', data) }
 export function updateModel(id, data) { return request.put(`/models/${id}`, data) }
-export function deleteModel(id) { return request.delete(`/models/${id}`, data) }
-export function testModel(id, question) { return request.post('/models/test', { id, testQuestion: question }) }
+export function deleteModel(id) { return request.delete(`/models/${id}`) }
+export function toggleModelStatus(id, status) { return request.post(`/models/${id}/toggle`, { status }) }
+export function testModel(id, question) { return request.post('/models/test', { id, question }) }
+export function testModelConfig(data) { return request.post('/models/test', data) }
 
 // ====== FR-03 question(由向锏楠实现 ✅) ======
 export function pageQuestions(params) { return request.get('/questions', { params }) }
