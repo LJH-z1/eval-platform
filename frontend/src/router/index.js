@@ -9,16 +9,23 @@ const routes = [
     component: () => import('@/views/Layout.vue'),
     redirect: '/dashboard',
     children: [
-      { path: 'dashboard', name: 'dashboard', component: () => import('@/views/Dashboard.vue'),                          meta: { title: '首页' } },
-      { path: 'profile',   name: 'profile',   component: () => import('@/views/auth/Profile.vue'),                       meta: { title: '个人中心' } },
-      { path: 'users',     name: 'users',     component: () => import('@/views/auth/UserManagement.vue'),               meta: { title: '用户管理', roles: ['ADMIN'] } },
-      { path: 'model',     name: 'model',     component: () => import('@/views/model/ModelList.vue'),                    meta: { title: '模型配置' } },
-      { path: 'question',  name: 'question',  component: () => import('@/views/question/QuestionList.vue'),              meta: { title: '问题管理' } },
-      { path: 'evaluation',name: 'evaluation',component: () => import('@/views/evaluation/EvaluationMain.vue'),          meta: { title: '评测' } },
-      { path: 'score',     name: 'score',     component: () => import('@/views/score/ScoreMain.vue'),                    meta: { title: '评分' } },
-      { path: 'stats',     name: 'stats',     component: () => import('@/views/stats/StatsMain.vue'),                    meta: { title: '一致性分析' } },
-      { path: 'billing',   name: 'billing',   component: () => import('@/views/billing/BillingMain.vue'),                meta: { title: '成本统计' } },
-      { path: 'export',    name: 'export',    component: () => import('@/views/export/ExportMain.vue'),                  meta: { title: '报告导出' } }
+      { path: 'dashboard', name: 'dashboard', component: () => import('@/views/Dashboard.vue'),                meta: { title: '首页' } },
+      { path: 'profile',   name: 'profile',   component: () => import('@/views/auth/Profile.vue'),             meta: { title: '个人中心' } },
+      { path: 'users',     name: 'users',     component: () => import('@/views/auth/UserManagement.vue'),     meta: { title: '用户管理', roles: ['ADMIN'] } },
+
+      // ========== FR-03 问题管理(向锏楠 已实现)==========
+      { path: 'question',          name: 'question',       component: () => import('@/views/question/QuestionList.vue'),   meta: { title: '问题管理' } },
+      { path: 'question/new',      name: 'question-new',   component: () => import('@/views/question/QuestionForm.vue'),  meta: { title: '新建问题' } },
+      { path: 'question/:id/edit', name: 'question-edit',  component: () => import('@/views/question/QuestionForm.vue'),  meta: { title: '编辑问题' } },
+      { path: 'question/import',   name: 'question-import',component: () => import('@/views/question/QuestionImport.vue'), meta: { title: '批量导入' } },
+
+      // 其它模块路由(待各负责人实现)
+      { path: 'model',     name: 'model',     component: () => import('@/views/model/ModelList.vue'),       meta: { title: '模型配置' } },
+      { path: 'evaluation',name: 'evaluation',component: () => import('@/views/evaluation/EvaluationMain.vue'), meta: { title: '评测' } },
+      { path: 'score',     name: 'score',     component: () => import('@/views/score/ScoreMain.vue'),       meta: { title: '评分' } },
+      { path: 'stats',     name: 'stats',     component: () => import('@/views/stats/StatsMain.vue'),       meta: { title: '一致性分析' } },
+      { path: 'billing',   name: 'billing',   component: () => import('@/views/billing/BillingMain.vue'),   meta: { title: '成本统计' } },
+      { path: 'export',    name: 'export',    component: () => import('@/views/export/ExportMain.vue'),     meta: { title: '报告导出' } }
     ]
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } }

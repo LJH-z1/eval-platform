@@ -2,6 +2,8 @@ package com.mavis.evalplatform.auth.service;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,17 +17,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * JWT 服务 — 实现骨架
+ * JWT 服务 — 最小可用实现(让项目能起来)
  * <p>
- * 由【刘家豪 FR-01】完成实现,其他人请勿修改。
- * <p>
- * 实现要点:
- * <ul>
- *   <li>HS256 签名,8 小时过期</li>
- *   <li>secret ≥ 32 字节,从配置 {@code eval.jwt.secret} 读取</li>
- *   <li>Claims:uid, username, role</li>
- *   <li>工具版本:jjwt 0.12.5(API 风格如 {@code Jwts.builder().claims(...).signWith(key, Jwts.SIG.HS256).compact()})</li>
- * </ul>
+ * HS256 签名,8 小时过期
  *
  * @author 刘家豪
  */
@@ -44,32 +38,44 @@ public class JwtService {
 
     @PostConstruct
     public void init() {
-        // TODO 由刘家豪实现:校验 secret ≥ 32 字节,初始化 key 与 expireSeconds
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 JwtService.init()");
+        byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length < 32) {
+            throw new IllegalStateException(
+                    "eval.jwt.secret 必须 ≥ 32 字节(HS256 要求),当前: " + bytes.length);
+        }
+        this.key = Keys.hmacShaKeyFor(bytes);
+        this.expireSeconds = expireHours * 3600L;
+        log.info("[JwtService] 初始化完成,expire={}h", expireHours);
     }
 
     public String generateToken(Long userId, String username, String role) {
-        // TODO 由刘家豪实现:签发 HS256 JWT,Claims 含 uid/username/role
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 generateToken");
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("uid", userId);
+        claims.put("username", username);
+        claims.put("role", role);
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + expireSeconds * 1000L);
+        return Jwts.builder()
+                .claims(claims)
+                .subject(username)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
     }
 
     public Claims parse(String token) {
-        // TODO 由刘家豪实现:解析 token,失败抛 JwtException
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 parse");
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 
     public boolean isValid(String token) {
-        // TODO 由刘家豪实现:不抛异常的校验
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 isValid");
+        try { parse(token); return true; } catch (Exception e) { return false; }
     }
 
-    public long getExpireSeconds() {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 getExpireSeconds");
-    }
+    public long getExpireSeconds() { return expireSeconds; }
 
     public boolean isExpired(String token) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 isExpired");
+        try { return parse(token).getExpiration().toInstant().isBefore(Instant.now()); }
+        catch (JwtException e) { return true; }
     }
 }

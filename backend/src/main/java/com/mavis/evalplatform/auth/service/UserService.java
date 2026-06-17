@@ -1,7 +1,6 @@
 package com.mavis.evalplatform.auth.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.mavis.evalplatform.auth.dto.RegisterRequest;
 import com.mavis.evalplatform.auth.dto.UserInfo;
 import com.mavis.evalplatform.auth.entity.Role;
@@ -21,9 +20,7 @@ import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 
 /**
- * 用户业务服务 — 实现骨架
- * <p>
- * 由【刘家豪 FR-01】完成实现,其他人请勿修改。
+ * 用户业务服务 — 最小可用实现
  *
  * @author 刘家豪
  */
@@ -39,38 +36,78 @@ public class UserService {
     private final AesUtil aesUtil;
 
     public User findByUsername(String username) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 findByUsername");
+        return userMapper.selectByUsername(username);
     }
 
     public User findById(Long id) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 findById");
+        return userMapper.selectById(id);
     }
 
     public UserInfo toUserInfo(User u) {
-        // TODO 由刘家豪实现:User → UserInfo(不返回 password)
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 toUserInfo");
+        if (u == null) return null;
+        UserInfo info = new UserInfo();
+        info.setId(u.getId());
+        info.setUsername(u.getUsername());
+        info.setEmail(u.getEmail());
+        info.setRole(u.getRole());
+        info.setStatus(u.getStatus());
+        info.setCreatedAt(u.getCreatedAt());
+        Role r = Role.of(u.getRole());
+        info.setRoleDescription(r.getDescription());
+        return info;
     }
 
-    public UserInfo createUser(RegisterRequest req) {
-        // TODO 由刘家豪实现:校验 + BCrypt 加密 + 写入 + 转 UserInfo
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 createUser");
-    }
-
+    @Transactional
     public void changePassword(Long userId, String oldPwd, String newPwd) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 changePassword");
+        validatePassword(newPwd);
+        User u = userMapper.selectById(userId);
+        if (u == null) throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        if (!passwordEncoder.matches(oldPwd, u.getPassword())) {
+            throw new BusinessException(ErrorCode.OLD_PASSWORD_INCORRECT);
+        }
+        u.setPassword(passwordEncoder.encode(newPwd));
+        u.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(u);
     }
 
+    @Transactional
     public void disableUser(Long userId) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 实现 disableUser");
+        User u = userMapper.selectById(userId);
+        if (u == null) throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        u.setStatus(0);
+        u.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(u);
+    }
+
+    @Transactional
+    public UserInfo createUser(RegisterRequest req) {
+        validateUsername(req.getUsername());
+        validatePassword(req.getPassword());
+        if (userMapper.selectByUsername(req.getUsername()) != null) {
+            throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
+        }
+        User u = new User();
+        u.setUsername(req.getUsername());
+        u.setPassword(passwordEncoder.encode(req.getPassword()));
+        u.setEmail(StringUtils.hasText(req.getEmail()) ? req.getEmail() : null);
+        u.setRole(Role.of(req.getRole()).getCode());
+        u.setStatus(1);
+        u.setFailedCount(0);
+        u.setCreatedAt(LocalDateTime.now());
+        u.setUpdatedAt(LocalDateTime.now());
+        userMapper.insert(u);
+        return toUserInfo(u);
     }
 
     public PageResult<UserInfo> page(long pageNum, long pageSize, String role) {
-        // TODO 由刘家豪实现
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 page");
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<User> p =
+                com.baomidou.mybatisplus.extension.plugins.pagination.Page.of(pageNum, pageSize);
+        LambdaQueryWrapper<User> w = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(role)) w.eq(User::getRole, role);
+        w.orderByDesc(User::getCreatedAt);
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<User> result = userMapper.selectPage(p, w);
+        return PageResult.of(result.getRecords().stream().map(this::toUserInfo).toList(),
+                result.getTotal(), pageNum, pageSize);
     }
 
     public static void validateUsername(String username) {

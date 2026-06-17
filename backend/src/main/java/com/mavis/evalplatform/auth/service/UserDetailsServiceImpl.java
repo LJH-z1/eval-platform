@@ -13,15 +13,6 @@ import java.util.List;
 
 /**
  * Spring Security UserDetailsService 实现
- * <p>
- * 由【刘家豪 FR-01】实现。
- * <p>
- * 关键点:
- * <ul>
- *   <li>按 username 查 DB,只查 status=1 的</li>
- *   <li>角色加 ROLE_ 前缀,如 ROLE_ADMIN</li>
- *   <li>找不到用户抛 {@code UsernameNotFoundException}</li>
- * </ul>
  *
  * @author 刘家豪
  */
@@ -33,7 +24,17 @@ public class UserDetailsServiceImpl implements org.springframework.security.core
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // TODO 由刘家豪实现:查 user 表,只取 status=1 的,角色加 ROLE_ 前缀
-        throw new UnsupportedOperationException("TODO 由刘家豪 FR-01 实现 loadUserByUsername");
+        User u = userMapper.selectOne(new LambdaQueryWrapper<User>()
+                .eq(User::getUsername, username)
+                .eq(User::getStatus, 1));
+        if (u == null) {
+            throw new UsernameNotFoundException("用户不存在或已禁用: " + username);
+        }
+        return new org.springframework.security.core.userdetails.User(
+                u.getUsername(),
+                u.getPassword(),
+                u.getStatus() == 1,
+                true, true, true,
+                List.of(new SimpleGrantedAuthority("ROLE_" + u.getRole())));
     }
 }

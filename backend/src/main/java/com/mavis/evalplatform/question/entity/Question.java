@@ -52,6 +52,9 @@ public class Question implements Serializable {
     /** 软删除:0 正常 / 1 删除 */
     private Integer deleted;
 
+    /** 是否公共题库:0 个人 / 1 公共 */
+    private Integer isPublic;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

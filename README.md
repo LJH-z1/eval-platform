@@ -18,20 +18,21 @@
 
 | 模块 | 状态 | 负责人 |
 |---|---|---|
-| FR-01 用户登录 | 骨架完成(含配置/Service/Filter/Controller) | 刘家豪 |
+| FR-01 用户登录 | ✅ 完整实现(JWT + BCrypt + 限流 + 审计) | 刘家豪 |
 | FR-02 模型配置 | 接口契约 + 实体 + Controller 占位 | 向锏楠 |
-| FR-03 问题管理 | 接口契约 + 实体 + Controller 占位 | 向锏楠 |
+| **FR-03 问题管理** | ✅ **完整实现**(CRUD + 批量导入 + 软删 + 20 测试通过) | **向锏楠** |
 | FR-04 评测 + 适配器 | 接口契约 + 实体 + 5 个 Adapter 占位 | 梁倩倩 |
 | FR-05 多维评分 | 接口契约 + 实体 + Controller 占位 | 宋子翔 |
 | FR-06 Fleiss Kappa | 接口契约 + Controller 占位 | 宋子翔 |
 | FR-07 成本统计 | 接口契约 + Controller 占位 | 梁倩倩 |
 | FR-08 报告导出 | 接口契约 + Controller 占位 | 周文泽 |
-| 前端整体 | 路由 + 公共组件 + 占位页(8 个模块页) | 靳磊 |
-| 数据库 | V1.0__init.sql(7 张表) | 刘家豪 |
+| 前端整体 | ✅ 路由 + 公共组件 + FR-01/FR-03 完整页 + 其余 6 个模块占位 | 靳磊 |
+| 数据库 | V1.0__init.sql(7 张表) + V1.0__init-h2.sql(dev profile) | 刘家豪 |
 | 文档 | 三大说明书 + ARCHITECTURE + CONTRIBUTING + 8 个模块 TODO | 刘家豪 |
+| 一键启动 | ✅ `deploy/start-dev.{sh,bat}`(H2 内存库,无需 MySQL) | 刘家豪 |
 | CI | 待补(周文泽负责) | 周文泽 |
 
-**调用约定**:每个 Service 方法体是 `throw new UnsupportedOperationException("TODO ...")`,运行时会报错 — 这是设计上的"占位提示",让人一眼看出哪里还没实现。
+**调用约定**:已完成模块(FR-01、FR-03)是真实现;其余模块的 Service 方法返回 `Result.error(501, "TODO")`,Controller 占位但不会让 Spring DI 报错,可以正常登录、看问题管理页、调用 FR-02/04/05/06/07/08 占位端点看到友好的 "TODO" 提示。
 
 ---
 
@@ -97,11 +98,23 @@ npm run dev
 
 前端地址:http://localhost:5173
 
-### 3.4 一键启动
+### 3.4 一键启动(无需 MySQL,用 H2 内存库)
 
 ```bash
-bash deploy/start.sh all
+# Windows
+deploy\start-dev.bat
+
+# Linux / macOS / WSL
+bash deploy/start-dev.sh
 ```
+
+脚本会:
+1. 用 `dev` profile 启动 Spring Boot(连接内嵌 H2)
+2. 自动 seed 一条 admin 账号(`admin` / `admin123`)
+3. 启动 Vue 前端 dev server
+4. 浏览器打开 **http://localhost:5173**,登录后即可看到 **FR-01 用户管理 + FR-03 问题管理** 完整页面
+
+> 想用真实 MySQL?改用 `mvn spring-boot:run`(默认 profile),然后 `mysql -uroot -p < backend/src/main/resources/db/migration/V1.0__init.sql`。
 
 ---
 

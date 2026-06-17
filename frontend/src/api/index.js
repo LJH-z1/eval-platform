@@ -16,11 +16,13 @@ export function updateModel(id, data) { return request.put(`/models/${id}`, data
 export function deleteModel(id) { return request.delete(`/models/${id}`, data) }
 export function testModel(id, question) { return request.post('/models/test', { id, testQuestion: question }) }
 
-// ====== FR-03 question(由向锏楠实现) ======
+// ====== FR-03 question(由向锏楠实现 ✅) ======
 export function pageQuestions(params) { return request.get('/questions', { params }) }
+export function getQuestion(id) { return request.get(`/questions/${id}`) }
 export function createQuestion(data) { return request.post('/questions', data) }
 export function updateQuestion(id, data) { return request.put(`/questions/${id}`, data) }
 export function deleteQuestion(id) { return request.delete(`/questions/${id}`) }
+export function listQuestionLibrary() { return request.get('/questions/library') }
 export function importQuestions(file) {
   const fd = new FormData()
   fd.append('file', file)
