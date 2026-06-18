@@ -66,6 +66,7 @@ CREATE TABLE `question` (
   `expected_answer` TEXT,
   `created_by`      BIGINT,
   `deleted`         TINYINT      DEFAULT 0,
+  `is_public`       TINYINT      DEFAULT 0 COMMENT '1=公共题库,0=个人题库',
   `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

@@ -29,7 +29,9 @@ const routes = [
       { path: 'question/import',   name: 'question-import',component: () => import('@/views/question/QuestionImport.vue'), meta: { title: '批量导入' } },
 
       // 其它模块路由(待各负责人实现)
-      { path: 'evaluation',name: 'evaluation',component: () => import('@/views/evaluation/EvaluationMain.vue'), meta: { title: '评测' } },
+      { path: 'evaluation',        name: 'evaluation',         component: () => import('@/views/evaluation/EvaluationList.vue'),   meta: { title: '评测任务' } },
+      { path: 'evaluation/new',    name: 'evaluation-new',     component: () => import('@/views/evaluation/EvaluationCreate.vue'), meta: { title: '新建评测' } },
+      { path: 'evaluation/:id',    name: 'evaluation-detail',  component: () => import('@/views/evaluation/EvaluationDetail.vue'), meta: { title: '评测详情' } },
       { path: 'score',     name: 'score',     component: () => import('@/views/score/ScoreMain.vue'),       meta: { title: '评分' } },
       { path: 'stats',     name: 'stats',     component: () => import('@/views/stats/StatsMain.vue'),       meta: { title: '一致性分析' } },
       { path: 'billing',   name: 'billing',   component: () => import('@/views/billing/BillingMain.vue'),   meta: { title: '成本统计' } },

@@ -63,28 +63,33 @@ CREATE TABLE IF NOT EXISTS model_config (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- evaluation(FR-04 占位,FR-02 删除引用检查依赖此表存在性探测)
+-- evaluation(FR-04)
 CREATE TABLE IF NOT EXISTS evaluation (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  question_ids TEXT,
-  model_ids TEXT,
-  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  description TEXT,
   created_by BIGINT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  model_ids VARCHAR(500),
+  question_ids VARCHAR(2000),
+  started_at TIMESTAMP,
+  finished_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- answer(FR-04 占位)
+-- answer(FR-04)
 CREATE TABLE IF NOT EXISTS answer (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   evaluation_id BIGINT NOT NULL,
   question_id BIGINT NOT NULL,
   model_id BIGINT NOT NULL,
-  content TEXT,
-  latency_ms BIGINT,
-  token_count INT,
-  status VARCHAR(20),
+  content LONGTEXT,
+  latency_ms INT,
+  token_input INT,
+  token_output INT,
+  estimated_cost DECIMAL(10,4),
+  error_code VARCHAR(50),
+  error_message VARCHAR(500),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

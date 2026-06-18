@@ -32,12 +32,13 @@ export function importQuestions(file) {
   return request.post('/questions/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
-// ====== FR-04 evaluation(由梁倩倩实现) ======
+// ====== FR-04 evaluation(由梁倩倩实现 ✅) ======
 export function createEvaluation(data) { return request.post('/evaluations', data) }
 export function runEvaluation(id) { return request.post(`/evaluations/${id}/run`) }
 export function getEvaluation(id) { return request.get(`/evaluations/${id}`) }
 export function pageEvaluations(params) { return request.get('/evaluations', { params }) }
 export function listAnswers(id) { return request.get(`/evaluations/${id}/answers`) }
+export function deleteEvaluation(id) { return request.delete(`/evaluations/${id}`) }
 
 // ====== FR-05 score(由宋子翔实现) ======
 export function submitScore(data) { return request.post('/scores', data) }

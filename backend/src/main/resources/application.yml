@@ -7,7 +7,8 @@ spring:
   application:
     name: eval-platform
   profiles:
-    active: dev
+    # 默认走 prod(真 MySQL);要切回 H2 dev,启动时加 --spring.profiles.active=dev
+    active: prod
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:eval_platform}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
     username: ${DB_USER:root}

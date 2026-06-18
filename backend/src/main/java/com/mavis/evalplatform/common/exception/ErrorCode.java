@@ -44,7 +44,16 @@ public enum ErrorCode {
     MODEL_REFERENCED(1023, "模型已被评测引用,无法删除"),
     MODEL_NOT_FOUND(1024, "模型不存在"),
     MODEL_API_KEY_INVALID(1025, "API Key 无效"),
-    MODEL_TEST_FAILED(1026, "模型连接测试失败");
+    MODEL_TEST_FAILED(1026, "模型连接测试失败"),
+
+    // 评测相关(FR-04)
+    EVALUATION_NOT_FOUND(1030, "评测任务不存在"),
+    EVALUATION_INVALID_MODELS(1031, "至少需要 2 个已启用模型"),
+    EVALUATION_TOO_MANY_QUESTIONS(1032, "单次评测问题数不能超过 50"),
+    EVALUATION_ALREADY_RUNNING(1033, "评测已在运行中"),
+    EVALUATION_NOT_RUNNING(1034, "评测未在运行"),
+    EVALUATION_NO_PROVIDER_ADAPTER(1035, "没有适配器支持该提供商"),
+    EVALUATION_CALL_FAILED(1036, "模型调用失败");
 
     private final Integer code;
     private final String message;
