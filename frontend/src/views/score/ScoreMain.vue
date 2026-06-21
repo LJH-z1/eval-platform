@@ -1,23 +1,75 @@
 <script setup>
-import ModulePlaceholder from '@/components/ModulePlaceholder.vue'
+/**
+ * 评分列表页 - FR-05
+ * <p>
+ * 列出可评分的评测(状态=COMPLETED),显示我的评分进度
+ * 路由:/score
+ */
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { pageEvaluations } from '@/api'
+import { getEvaluation } from '@/api'
+
+const router = useRouter()
+const loading = ref(false)
+const list = ref([])
+
+async function load() {
+  loading.value = true
+  try {
+    const data = await pageEvaluations({ pageNum: 1, pageSize: 50, status: 'COMPLETED' })
+    list.value = data.list || []
+  } catch (e) {
+    ElMessage.error('加载失败:' + (e?.response?.data?.message || e?.message || ''))
+  } finally {
+    loading.value = false
+  }
+}
+
+function onScore(row) {
+  router.push({ name: 'score-form', params: { id: row.id } })
+}
+
+onMounted(load)
 </script>
 
 <template>
-  <ModulePlaceholder
-    module="FR-05"
-    owner="宋子翔(后端) + 靳磊(前端)"
-    title="评分页骨架"
-    :features="[
-      '卡片式布局:左侧问题,右侧各模型匿名回答',
-      '4 维度 1-5 分滑块(准确性/相关性/流畅性/安全性)',
-      '评语 ≤ 500 字',
-      '进度显示:已评/总数',
-      '提交后锁定(POST /api/scores)',
-      '同一评分员对同一回答只能评 1 次'
-    ]"
-  >
-    <template #api>
-      <p>POST <code>/api/scores</code> body: {answerId, accuracy, relevance, fluency, safety, comment}</p>
-    </template>
-  </ModulePlaceholder>
+  <div class="page-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <h2 class="page-title">⭐ 多维评分</h2>
+        <p class="page-subtitle">从准确性 / 相关性 / 流畅性 / 安全性 4 个维度对模型回答评分,1-5 分制</p>
+      </div>
+    </div>
+
+    <el-card shadow="never">
+      <el-table v-loading="loading" :data="list" stripe border>
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="name" label="评测名称" min-width="200" show-overflow-tooltip />
+        <el-table-column label="模型" width="100">
+          <template #default="{ row }">
+            <el-tag size="small">{{ (row.modelIds || '').split(',').filter(Boolean).length }} 个</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="问题" width="100">
+          <template #default="{ row }">
+            <el-tag size="small">{{ (row.questionIds || '').split(',').filter(Boolean).length }} 题</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag type="success" size="small">已完成</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" width="170" />
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link :icon="'EditPen'" @click="onScore(row)">去评分</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!loading && list.length === 0" description="还没有已完成的评测。先在「评测任务」页创建一个并跑完。" />
+    </el-card>
+  </div>
 </template>

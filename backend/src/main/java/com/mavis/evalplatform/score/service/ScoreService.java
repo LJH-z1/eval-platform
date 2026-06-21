@@ -1,5 +1,6 @@
 package com.mavis.evalplatform.score.service;
 
+import com.mavis.evalplatform.score.dto.ScoreRequest;
 import com.mavis.evalplatform.score.entity.Score;
 
 import java.util.List;
@@ -21,8 +22,12 @@ import java.util.List;
 public interface ScoreService {
 
     /**
-     * 提交评分
-     * @throws com.mavis.evalplatform.common.exception.BusinessException 1002 已评过分
+     * 提交评分(用 DTO)
+     */
+    Score submit(ScoreRequest req, Long scorerId);
+
+    /**
+     * 提交评分(用单参)
      */
     Score submit(Long answerId, Long scorerId, Integer accuracy, Integer relevance,
                  Integer fluency, Integer safety, String comment);
@@ -36,4 +41,9 @@ public interface ScoreService {
      * 获取某回答的所有评分
      */
     List<Score> listByAnswer(Long answerId);
+
+    /**
+     * 查询某评分员对某回答是否已评
+     */
+    Score findByAnswerAndScorer(Long answerId, Long scorerId);
 }

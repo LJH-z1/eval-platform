@@ -39,6 +39,14 @@ public abstract class OpenAiCompatibleAdapter implements ModelAdapter {
     @Override
     public final ModelCallResult call(ModelConfig model, String question) {
         long start = System.currentTimeMillis();
+
+        // === MOCK 模式 ===
+        // 触发条件:apiKey == "MOCK" 或 endpoint 以 "mock://" 开头
+        // 用途:不接真 API 也能完整跑通"创建评测→运行→评分"流程
+        if (isMockMode(model)) {
+            return mockCall(model, question, start);
+        }
+
         try {
             // 1) 校验参数
             if (model.getEndpoint() == null || model.getEndpoint().isBlank()) {
@@ -121,6 +129,75 @@ public abstract class OpenAiCompatibleAdapter implements ModelAdapter {
     }
 
     // ---- 工具方法 ----
+
+    /**
+     * 判断是否走 mock 模式
+     */
+    private boolean isMockMode(ModelConfig model) {
+        if (model == null) return false;
+        String key = model.getApiKey();
+        if ("MOCK".equalsIgnoreCase(key) || "sk-MOCK".equalsIgnoreCase(key)) return true;
+        String ep = model.getEndpoint();
+        return ep != null && ep.toLowerCase().startsWith("mock://");
+    }
+
+    /**
+     * Mock 响应 — 不发真请求,直接根据 provider + question 生成可重复的假答案
+     */
+    private ModelCallResult mockCall(ModelConfig model, String question, long start) {
+        // 模拟延迟 200-800ms
+        try {
+            Thread.sleep(200 + (long)(Math.random() * 600));
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+        long latency = System.currentTimeMillis() - start;
+        String content = buildMockContent(model, question);
+        // 估算 token:英文按字符/4,中文按字符/2
+        int inTok = Math.max(1, (int) (question.length() / 2.5));
+        int outTok = Math.max(1, (int) (content.length() / 3.0));
+        return ModelCallResult.ok(content, inTok, outTok, latency);
+    }
+
+    /**
+     * 构造 mock 答案 — 根据 provider 不同有不同风格
+     */
+    private String buildMockContent(ModelConfig model, String question) {
+        String provider = provider();
+        String q = question == null ? "" : question;
+        String lower = q.toLowerCase();
+        String header = "[" + provider + " Mock 回答 · " + (model.getModelVersion() == null ? "?" : model.getModelVersion()) + "]\n\n";
+
+        // 根据问题关键词给不同风格的回答
+        if (lower.contains("代码") || lower.contains("python") || lower.contains("function") || lower.contains("写一个") || lower.contains("实现")) {
+            return header + "以下是" + provider + " 提供的代码示例:\n\n"
+                + "```python\n"
+                + "def solution(input_data):\n"
+                + "    \"\"\"根据输入数据进行处理\"\"\"\n"
+                + "    result = process(input_data)\n"
+                + "    return result\n"
+                + "```\n\n"
+                + "**说明**:这是一个标准的解决方案,使用了解析+处理+返回的范式。\n"
+                + "- 优点:可读性高、易于测试\n"
+                + "- 适用场景:大多数常见需求\n\n"
+                + "(这是 " + provider + " 的 mock 答案,真实环境会调用真 API)";
+        }
+        if (lower.contains("什么是") || lower.contains("解释") || lower.contains("区别") || lower.contains("how") || lower.contains("what") || lower.contains("why")) {
+            return header + "关于" + q.split("[?？]")[0] + "的问题,我的理解如下:\n\n"
+                + "这是一个经典的开放性问题。从" + provider + " 视角,我认为有以下几个关键点:\n\n"
+                + "1. **核心概念**:先明确问题涉及的基本概念和定义\n"
+                + "2. **应用场景**:结合实际使用情况分析\n"
+                + "3. **最佳实践**:给出建议的解决方案\n\n"
+                + "综合来看,这个问题需要根据具体场景灵活处理。\n\n"
+                + "(这是 " + provider + " 的 mock 答案,真实环境会调用真 API)";
+        }
+        // 通用回答
+        return header + "针对您的问题:\n\n" + q + "\n\n"
+            + provider + " 给出的回答是:这是一个值得深入思考的问题。"
+            + "建议从以下角度进一步分析:\n"
+            + "- 背景调研\n- 方案对比\n- 风险评估\n- 实施建议\n\n"
+            + "(这是 " + provider + " 的 mock 答案,真实环境会调用真 API)";
+    }
 
     private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 

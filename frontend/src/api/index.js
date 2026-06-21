@@ -40,23 +40,55 @@ export function pageEvaluations(params) { return request.get('/evaluations', { p
 export function listAnswers(id) { return request.get(`/evaluations/${id}/answers`) }
 export function deleteEvaluation(id) { return request.delete(`/evaluations/${id}`) }
 
-// ====== FR-05 score(由宋子翔实现) ======
+// ====== FR-05 score(由宋子翔实现 ✅) ======
 export function submitScore(data) { return request.post('/scores', data) }
 export function listMyScores(evaluationId) { return request.get('/scores/by-evaluation', { params: { evaluationId } }) }
+export function listScoresByAnswer(answerId) { return request.get(`/scores/by-answer/${answerId}`) }
+export function checkScore(answerId) { return request.get('/scores/check', { params: { answerId } }) }
 
-// ====== FR-06 stats(由宋子翔实现) ======
+// ====== FR-06 stats(由宋子翔实现 ✅) ======
 export function getKappa(evaluationId) { return request.get('/stats/kappa', { params: { evaluationId } }) }
 export function getControversial(evaluationId) { return request.get('/stats/controversial', { params: { evaluationId } }) }
 export function getScorerRanking(evaluationId) { return request.get('/stats/scorer-ranking', { params: { evaluationId } }) }
 export function getModelRanking(evaluationId) { return request.get('/stats/model-ranking', { params: { evaluationId } }) }
 
-// ====== FR-07 billing(由梁倩倩实现) ======
+// ====== FR-07 billing(由梁倩倩实现 ✅) ======
 export function getBillingSummary(evaluationId) { return request.get('/billing/summary', { params: { evaluationId } }) }
 export function getBillingTimeSeries(evaluationId, granularity = 'hour') {
   return request.get('/billing/time-series', { params: { evaluationId, granularity } })
 }
 export function getBillingByModel(evaluationId) { return request.get('/billing/by-model', { params: { evaluationId } }) }
+export function getBillingPlatform() { return request.get('/billing/platform-summary') }
+export async function downloadBillingCsv(evaluationId) {
+  const r = await request.get(`/billing/export?evaluationId=${evaluationId}`, { responseType: 'blob' })
+  const blob = new Blob([r], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `billing_eval_${evaluationId}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
-// ====== FR-08 export(由周文泽实现) ======
-export function downloadExcelUrl(id) { return `/api/export/${id}/excel` }
-export function downloadPdfUrl(id) { return `/api/export/${id}/pdf` }
+// ====== FR-08 export(由周文泽实现 ✅) ======
+export function getExportMeta(id) { return request.get(`/export/${id}/meta`) }
+export async function downloadExcelUrl(id) {
+  const r = await request.get(`/export/${id}/excel`, { responseType: 'blob' })
+  const blob = new Blob([r], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `evaluation_${id}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+export async function downloadPdfUrl(id) {
+  const r = await request.get(`/export/${id}/pdf`, { responseType: 'blob' })
+  const blob = new Blob([r], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `evaluation_${id}.html`
+  a.click()
+  URL.revokeObjectURL(url)
+}

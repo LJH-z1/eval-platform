@@ -1,5 +1,6 @@
 package com.mavis.evalplatform.evaluation.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -27,6 +28,8 @@ public class Evaluation implements Serializable {
 
     private String name;
     private String description;
+
+    @TableField(fill = FieldFill.INSERT)
     private Long createdBy;
 
     /** PENDING/RUNNING/COMPLETED/FAILED */

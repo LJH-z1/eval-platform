@@ -53,7 +53,14 @@ public enum ErrorCode {
     EVALUATION_ALREADY_RUNNING(1033, "评测已在运行中"),
     EVALUATION_NOT_RUNNING(1034, "评测未在运行"),
     EVALUATION_NO_PROVIDER_ADAPTER(1035, "没有适配器支持该提供商"),
-    EVALUATION_CALL_FAILED(1036, "模型调用失败");
+    EVALUATION_CALL_FAILED(1036, "模型调用失败"),
+
+    // 评分相关(FR-05)
+    SCORE_NOT_FOUND(1040, "评分记录不存在"),
+    SCORE_ALREADY_SUBMITTED(1041, "你已对该回答评过分,不能重复提交"),
+    SCORE_SCORE_OUT_OF_RANGE(1042, "评分必须在 1-5 之间"),
+    SCORE_COMMENT_TOO_LONG(1043, "评语长度不能超过 500 字"),
+    SCORE_ANSWER_NOT_FOUND(1044, "回答不存在");
 
     private final Integer code;
     private final String message;

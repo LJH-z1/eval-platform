@@ -136,6 +136,9 @@ const statusTagType = {
       <div style="display:flex;gap:8px">
         <el-button @click="onBack">返回列表</el-button>
         <el-button type="primary" v-if="evaluation?.status === 'PENDING' || evaluation?.status === 'FAILED'" @click="onRun">启动评测</el-button>
+        <el-button v-if="evaluation?.status === 'COMPLETED'" type="success" @click="router.push({ name: 'score-form', params: { id: evaluationId } })">
+          ⭐ 去评分
+        </el-button>
       </div>
     </div>
 
