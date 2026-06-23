@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 /**
  * M3(MiniMax) 适配器 — OpenAI 兼容协议
  * <p>
- * Endpoint: https://api.MiniMax.chat/v1/text/chatcompletion_v2
+ * Endpoint: https://api.minimaxi.com/v1/text/chatcompletion_v2(原 api.MiniMax.chat 已重定向)
  *
  * @author 向锏楠
  */
@@ -21,7 +21,7 @@ public class M3Adapter extends OpenAiCompatibleAdapter {
 
     @Override
     protected String defaultEndpoint() {
-        return "https://api.MiniMax.chat/v1/text/chatcompletion_v2";
+        return "https://api.minimaxi.com/v1/text/chatcompletion_v2";
     }
 
     @Override

@@ -22,6 +22,8 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (resp) => {
     const body = resp.data
+    // 业务码格式:{code,data,message} → 成功时解包 data,前端直接用 r(不再 .data)
+    // blob/文件下载 → resp.data 已是原始字节,跳过解包
     if (body && typeof body === 'object' && 'code' in body) {
       if (body.code === 200) return body.data
       ElMessage.error(body.message || '操作失败')

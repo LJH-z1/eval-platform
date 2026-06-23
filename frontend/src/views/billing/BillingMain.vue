@@ -49,7 +49,7 @@ async function loadStats() {
 async function loadPlatform() {
   try {
     const r = await getBillingPlatform()
-    platform.value = r.data
+    platform.value = r || {}
   } catch (_) {}
 }
 

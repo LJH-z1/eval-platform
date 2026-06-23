@@ -34,7 +34,7 @@ async function loadEvalList() {
         evaluations.value.map(async e => {
           try {
             const r = await getKappa(e.id)
-            return { id: e.id, totalScores: r.data?.totalScores || 0, name: e.name }
+            return { id: e.id, totalScores: r?.totalScores || 0, name: e.name }
           } catch { return { id: e.id, totalScores: 0, name: e.name } }
         })
       )
@@ -42,40 +42,33 @@ async function loadEvalList() {
       const withData = candidates.filter(c => c.totalScores > 0)
       const pick = withData[0] || candidates[0]
       selectedId.value = pick.id
-      console.log('[Stats] default picked:', pick)
       await loadStats()
     }
   } catch (e) {
-    console.error('[Stats] loadEvalList failed:', e)
     ElMessage.error('加载评测列表失败:' + (e?.response?.data?.message || e?.message))
   }
 }
 
 async function loadStats() {
   if (!selectedId.value) return
-  console.log('[Stats] loadStats 入口, selectedId=', selectedId.value)
   loading.value = true
   // 串行调用(任一失败不影响其他)
   try {
     const k = await getKappa(selectedId.value)
-    console.log('[Stats] getKappa 返 (typeof):', typeof k, '值:', k)
     kappa.value = k || null
-  } catch (e) { console.error('[Stats] getKappa 失败:', e?.message) }
+  } catch (e) { /* 拦截器已提示 */ }
   try {
     const c = await getControversial(selectedId.value)
     controversial.value = (c || []).length ? c : []
-  } catch (e) { console.error('[Stats] getControversial 失败:', e?.message) }
+  } catch (e) { /* 拦截器已提示 */ }
   try {
     const s = await getScorerRanking(selectedId.value)
-    console.log('[Stats] getScorerRanking 返:', s, 'len:', s?.length)
     scorerRank.value = Array.isArray(s) ? s : []
-  } catch (e) { console.error('[Stats] getScorerRanking 失败:', e?.message) }
+  } catch (e) { /* 拦截器已提示 */ }
   try {
     const m = await getModelRanking(selectedId.value)
-    console.log('[Stats] getModelRanking 返:', m, 'len:', m?.length)
     modelRank.value = Array.isArray(m) ? m : []
-  } catch (e) { console.error('[Stats] getModelRanking 失败:', e?.message) }
-  console.log('[Stats] 写入完成: kappa=', !!kappa.value, 'scorerRank.len=', scorerRank.value.length, 'modelRank.len=', modelRank.value.length)
+  } catch (e) { /* 拦截器已提示 */ }
   loading.value = false
 }
 
@@ -94,7 +87,6 @@ function kappaBarWidth(k) {
 }
 
 function onEvalChange() {
-  console.log('[Stats] onEvalChange, new id=', selectedId.value)
   loadStats()
 }
 </script>

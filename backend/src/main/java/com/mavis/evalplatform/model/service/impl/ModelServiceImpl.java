@@ -291,11 +291,13 @@ public class ModelServiceImpl implements ModelService {
             throw new BusinessException(ErrorCode.MODEL_TEST_FAILED,
                     "HTTP " + resp.statusCode() + ": " + resp.body());
         }
-        // 简单提取 OpenAI 格式的 content
+        // 提取 OpenAI 格式的 content
         String respBody = resp.body();
         int idx = respBody.indexOf("\"content\":");
         if (idx >= 0) {
-            int start = respBody.indexOf('"', idx + 11) + 1;
+            // idx 是 "content" 开头的 ";content 值的开 " 在 idx+10(因为 "content": 长度=10)
+            // content 第一字符在 idx+11
+            int start = idx + 11;
             int end = respBody.indexOf('"', start);
             if (end > start) return respBody.substring(start, end);
         }

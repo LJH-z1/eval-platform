@@ -33,7 +33,7 @@ async function loadMeta() {
   if (!selectedId.value) return
   try {
     const r = await getExportMeta(selectedId.value)
-    meta.value = r.data
+    meta.value = r || {}
   } catch (e) {
     meta.value = null
   }
