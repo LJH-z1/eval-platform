@@ -24,7 +24,6 @@ const loading = ref(false)
 
 const roleOptions = [
   { value: 'SCORER',    label: '评分员',   desc: '参与多维评分' },
-  { value: 'ORGANIZER', label: '组织者',   desc: '创建评测、配置模型' },
   { value: 'VISITOR',   label: '访客',     desc: '仅查看' }
 ]
 
@@ -68,14 +67,13 @@ async function onSubmit() {
       <div class="auth-sub">创建你的评测账号</div>
 
       <el-alert
-        v-if="!auth.isLoggedIn"
-        type="warning"
+        type="info"
         :closable="false"
         show-icon
         style="margin-bottom:16px;font-size:12px"
       >
-        <template #title>需要管理员协助</template>
-        当前注册需要管理员身份调用 API。请联系管理员创建账号,或先用 admin/admin123 登录。
+        <template #title>开放注册</template>
+        任何人都可以注册评分员或访客账号,注册后立即可用。管理员/组织者账号请联系现有管理员创建。
       </el-alert>
 
       <el-form @submit.prevent="onSubmit" label-position="top" size="large">
@@ -105,7 +103,6 @@ async function onSubmit() {
           type="primary"
           :loading="loading"
           @click="onSubmit"
-          :disabled="!auth.isLoggedIn"
           style="width:100%;height:44px;font-size:15px"
         >
           注册

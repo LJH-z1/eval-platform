@@ -14,12 +14,18 @@ const evaluations = ref([])
 const selectedId = ref(null)
 const meta = ref(null)
 
+onMounted(loadEvalList)
+
 async function loadEvalList() {
-  const d = await pageEvaluations({ pageNum: 1, pageSize: 50 })
-  evaluations.value = d.list || []
-  if (!selectedId.value && evaluations.value.length > 0) {
-    selectedId.value = evaluations.value[0].id
-    await loadMeta()
+  try {
+    const d = await pageEvaluations({ pageNum: 1, pageSize: 50 })
+    evaluations.value = d.list || d.records || []
+    if (!selectedId.value && evaluations.value.length > 0) {
+      selectedId.value = evaluations.value[0].id
+      await loadMeta()
+    }
+  } catch (e) {
+    ElMessage.error('加载评测列表失败:' + (e?.message || ''))
   }
 }
 
@@ -62,7 +68,7 @@ async function onDownloadPdf() {
     <el-card shadow="never">
       <el-form inline>
         <el-form-item label="选择评测">
-          <el-select v-model="selectedId" placeholder="选择评测" style="width:420px" filterable @change="loadMeta">
+          <el-select v-model="selectedId" placeholder="选择评测" style="width:420px" filterable @change="loadMeta" no-data-text="暂无评测数据">
             <el-option v-for="e in evaluations" :key="e.id" :label="`#${e.id} · ${e.name}`" :value="e.id" />
           </el-select>
         </el-form-item>

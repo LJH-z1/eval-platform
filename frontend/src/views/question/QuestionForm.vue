@@ -102,9 +102,9 @@ onMounted(loadIfEdit)
 </script>
 
 <template>
-  <div v-loading="loading">
-    <el-card shadow="never" :header="isEdit ? '编辑问题' : '新建问题'">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" style="max-width: 800px">
+  <div v-loading="loading" class="question-form-wrap">
+    <el-card shadow="never" :header="isEdit ? '编辑问题' : '新建问题'" class="question-form-card">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" class="question-form">
         <el-form-item label="问题内容" prop="content">
           <el-input
             v-model="form.content"
@@ -181,3 +181,21 @@ onMounted(loadIfEdit)
     </el-card>
   </div>
 </template>
+
+<style scoped>
+/* 内容居中:外层 flex 垂直堆叠 + 水平居中,卡片限定最大宽度 */
+.question-form-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px;
+}
+.question-form-card {
+  width: 100%;
+  max-width: 880px;
+}
+.question-form {
+  max-width: 720px;
+  margin: 0 auto;
+}
+</style>

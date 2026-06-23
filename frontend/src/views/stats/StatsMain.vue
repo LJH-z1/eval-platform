@@ -22,38 +22,61 @@ const controversial = ref([])
 const scorerRank = ref([])
 const modelRank = ref([])
 
+onMounted(loadEvalList)
+
 async function loadEvalList() {
   try {
     const d = await pageEvaluations({ pageNum: 1, pageSize: 50, status: 'COMPLETED' })
     evaluations.value = d.list || []
     if (!selectedId.value && evaluations.value.length > 0) {
-      selectedId.value = evaluations.value[0].id
+      // 默认选"有评分数据的第一条":查每条 score 数,挑 scoreCount>0 的
+      const candidates = await Promise.all(
+        evaluations.value.map(async e => {
+          try {
+            const r = await getKappa(e.id)
+            return { id: e.id, totalScores: r.data?.totalScores || 0, name: e.name }
+          } catch { return { id: e.id, totalScores: 0, name: e.name } }
+        })
+      )
+      // 优先 totalScores>0 的,否则用最新
+      const withData = candidates.filter(c => c.totalScores > 0)
+      const pick = withData[0] || candidates[0]
+      selectedId.value = pick.id
+      console.log('[Stats] default picked:', pick)
       await loadStats()
     }
   } catch (e) {
+    console.error('[Stats] loadEvalList failed:', e)
     ElMessage.error('加载评测列表失败:' + (e?.response?.data?.message || e?.message))
   }
 }
 
 async function loadStats() {
   if (!selectedId.value) return
+  console.log('[Stats] loadStats 入口, selectedId=', selectedId.value)
   loading.value = true
+  // 串行调用(任一失败不影响其他)
   try {
-    const [k, c, s, m] = await Promise.all([
-      getKappa(selectedId.value),
-      getControversial(selectedId.value),
-      getScorerRanking(selectedId.value),
-      getModelRanking(selectedId.value)
-    ])
-    kappa.value = k.data
-    controversial.value = c.data || []
-    scorerRank.value = s.data || []
-    modelRank.value = m.data || []
-  } catch (e) {
-    ElMessage.error('加载统计失败:' + (e?.response?.data?.message || e?.message))
-  } finally {
-    loading.value = false
-  }
+    const k = await getKappa(selectedId.value)
+    console.log('[Stats] getKappa 返 (typeof):', typeof k, '值:', k)
+    kappa.value = k || null
+  } catch (e) { console.error('[Stats] getKappa 失败:', e?.message) }
+  try {
+    const c = await getControversial(selectedId.value)
+    controversial.value = (c || []).length ? c : []
+  } catch (e) { console.error('[Stats] getControversial 失败:', e?.message) }
+  try {
+    const s = await getScorerRanking(selectedId.value)
+    console.log('[Stats] getScorerRanking 返:', s, 'len:', s?.length)
+    scorerRank.value = Array.isArray(s) ? s : []
+  } catch (e) { console.error('[Stats] getScorerRanking 失败:', e?.message) }
+  try {
+    const m = await getModelRanking(selectedId.value)
+    console.log('[Stats] getModelRanking 返:', m, 'len:', m?.length)
+    modelRank.value = Array.isArray(m) ? m : []
+  } catch (e) { console.error('[Stats] getModelRanking 失败:', e?.message) }
+  console.log('[Stats] 写入完成: kappa=', !!kappa.value, 'scorerRank.len=', scorerRank.value.length, 'modelRank.len=', modelRank.value.length)
+  loading.value = false
 }
 
 function kappaColor(k) {
@@ -71,6 +94,7 @@ function kappaBarWidth(k) {
 }
 
 function onEvalChange() {
+  console.log('[Stats] onEvalChange, new id=', selectedId.value)
   loadStats()
 }
 </script>
@@ -101,7 +125,7 @@ function onEvalChange() {
         <template #header>
           <span>🎯 Fleiss Kappa 评分员一致性(0-1,越大越一致)</span>
         </template>
-        <div class="kappa-grid">
+        <div v-if="Object.keys(kappa.kappas || {}).length > 0" class="kappa-grid">
           <div v-for="(v, k) in kappa.kappas" :key="k" class="kpi-box">
             <div class="kpi-label">{{ k }}</div>
             <div class="kpi-value" :style="{ color: kappaColor(v) }">
@@ -113,7 +137,24 @@ function onEvalChange() {
             <div class="kpi-interpret">{{ kappa.interpretation }}</div>
           </div>
         </div>
-        <el-alert v-if="kappa.warnings && kappa.warnings.length > 0" :title="kappa.warnings.join(' / ')" type="warning" :closable="false" show-icon style="margin-top:12px" />
+        <el-alert
+          v-else
+          :title="`${kappa.interpretation || '数据不足'}: ${(kappa.warnings || []).join(' / ')}`"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-top:8px"
+        >
+          <template #title>
+            <div style="font-size:14px">{{ kappa.interpretation || '数据不足' }}</div>
+          </template>
+          <div style="margin-top:4px">
+            <span v-for="w in (kappa.warnings || [])" :key="w" style="display:block">{{ w }}</span>
+            <div style="color:#94a3b8;font-size:12px;margin-top:8px">
+              该评测没有足够评分数据(需要 ≥2 个评分员对同一回答评分)。试试下拉框选其他有数据的评测。
+            </div>
+          </div>
+        </el-alert>
         <div style="color:#94a3b8;font-size:12px;margin-top:12px">
           总评分数: {{ kappa.totalScores }} · 评分员: {{ kappa.scorerCount }} · 回答: {{ kappa.totalAnswers }}
         </div>
@@ -124,7 +165,7 @@ function onEvalChange() {
         <template #header>
           <span>🏆 模型排名(加权总分 = 准确性×0.4 + 相关性×0.3 + 流畅性×0.2 + 安全性×0.1)</span>
         </template>
-        <el-table :data="modelRank" stripe>
+        <el-table v-if="modelRank.length > 0" :data="modelRank" stripe>
           <el-table-column label="排名" width="80">
             <template #default="{ $index }">
               <span v-if="$index === 0">🥇</span>
@@ -146,6 +187,7 @@ function onEvalChange() {
           </el-table-column>
           <el-table-column prop="scoredCount" label="评分数" width="100" />
         </el-table>
+        <el-empty v-else description="该评测暂无模型排名数据" :image-size="80" />
       </el-card>
 
       <!-- 评分员排行 -->
@@ -153,7 +195,7 @@ function onEvalChange() {
         <template #header>
           <span>👥 评分员排行</span>
         </template>
-        <el-table :data="scorerRank" stripe>
+        <el-table v-if="scorerRank.length > 0" :data="scorerRank" stripe>
           <el-table-column prop="scorerId" label="ID" width="80" />
           <el-table-column prop="scoredCount" label="已评数" width="100" />
           <el-table-column prop="avgScore" label="平均分" width="120" />
@@ -164,6 +206,7 @@ function onEvalChange() {
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-else description="该评测暂无评分员数据" :image-size="80" />
       </el-card>
 
       <!-- 争议项 -->

@@ -311,7 +311,7 @@ public class ModelServiceImpl implements ModelService {
         if (!StringUtils.hasText(req.getProvider())) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "提供商不能为空");
         }
-        Set<String> validProviders = Set.of("M3", "ZHIPU", "QWEN", "WENXIN", "KIMI", "OPENAI", "CUSTOM");
+        Set<String> validProviders = Set.of("M3", "ZHIPU", "QWEN", "WENXIN", "KIMI", "OPENAI", "CUSTOM", "GEMINI");
         if (!validProviders.contains(req.getProvider().toUpperCase())) {
             throw new BusinessException(ErrorCode.PARAM_INVALID,
                     "不支持的提供商: " + req.getProvider() + " (允许: " + validProviders + ")");

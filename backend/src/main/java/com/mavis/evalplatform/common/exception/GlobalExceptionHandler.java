@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -61,6 +62,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Result<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
         return ResponseEntity.ok(Result.error(ErrorCode.BAD_REQUEST.getCode(),
                 "缺少必填参数:" + ex.getParameterName()));
+    }
+
+    /** 静态资源 / 端点不存在 → 返 404(而不是 500) */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResource(NoResourceFoundException ex, HttpServletRequest req) {
+        log.warn("[NotFound] {} {} -> {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Result.error(ErrorCode.NOT_FOUND.getCode(),
+                        "接口不存在: " + req.getRequestURI()));
     }
 
     /** Spring Security:凭证错误(用户名/密码错) */

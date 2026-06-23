@@ -80,6 +80,15 @@ public class UserService {
     }
 
     @Transactional
+    public void enableUser(Long userId) {
+        User u = userMapper.selectById(userId);
+        if (u == null) throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        u.setStatus(1);
+        u.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(u);
+    }
+
+    @Transactional
     public UserInfo createUser(RegisterRequest req) {
         validateUsername(req.getUsername());
         validatePassword(req.getPassword());

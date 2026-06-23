@@ -43,4 +43,11 @@ public class UserController {
         userService.disableUser(id);
         return Result.success();
     }
+
+    @Operation(summary = "启用用户")
+    @PostMapping("/{id}/enable")
+    public Result<Void> enable(@PathVariable Long id) {
+        userService.enableUser(id);
+        return Result.success();
+    }
 }

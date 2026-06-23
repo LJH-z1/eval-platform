@@ -78,12 +78,31 @@ public class AuthController {
     }
 
     /**
-     * 创建账号(管理员 / 组长)
+     * 创建账号
+     * <p>
+     * 开放注册(无需鉴权),但角色限制:
+     * - 只能注册 SCORER / VISITOR
+     * - 想注册 ADMIN/ORGANIZER 需现有 ADMIN 调用 /api/auth/register-admin(后端再加)
      */
-    @Operation(summary = "创建用户(仅管理员)")
+    @Operation(summary = "注册用户(对外开放,只允许 SCORER/VISITOR)")
     @PostMapping("/register")
-    @PreAuthorize("hasRole('ADMIN')")
     public Result<UserInfo> register(@Valid @RequestBody RegisterRequest req) {
+        String role = req.getRole() == null ? "SCORER" : req.getRole().toUpperCase();
+        if (!"SCORER".equals(role) && !"VISITOR".equals(role)) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID,
+                "开放注册仅支持 SCORER / VISITOR 角色");
+        }
+        req.setRole(role);
+        return Result.success("注册成功,请登录", userService.createUser(req));
+    }
+
+    /**
+     * 管理员创建用户(任何角色)
+     */
+    @Operation(summary = "管理员创建用户(任意角色,需 ADMIN 登录)", security = @SecurityRequirement(name = "bearerAuth"))
+    @PostMapping("/register-admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<UserInfo> registerAdmin(@Valid @RequestBody RegisterRequest req) {
         return Result.success("创建成功", userService.createUser(req));
     }
 

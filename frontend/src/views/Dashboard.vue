@@ -2,61 +2,97 @@
 /**
  * 首页 Dashboard - LMArena 风格
  * <p>
- * Hero(品牌 + 简介 + CTA + 统计)+ 9 个功能模块卡片 + 评测榜单 + 关于
+ * 角色适配:
+ * - VISITOR 看到「访客模式」:只看 Arena / 报告导出 / 总览
+ * - 其他角色看到全功能 + 可用模块卡片
  */
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { pageQuestions, listEnabledModels, pageModels } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { pageQuestions, pageModels, arenaRanking, getDashboardStats } from '@/api'
 
 const router = useRouter()
-const stats = ref({ questions: 0, models: 0, evaluations: 0 })
+const auth = useAuthStore()
+const stats = ref({ questions: 0, models: 0, evaluations: 0, scores: 0 })
+const leaderboard = ref([])
+
+const ROLE_RANK = { VISITOR: 1, SCORER: 2, ORGANIZER: 3, ADMIN: 4 }
+const isVisitor = computed(() => auth.role === 'VISITOR')
 
 onMounted(async () => {
   try {
-    const q = await pageQuestions({ pageNum: 1, pageSize: 1 })
-    stats.value.questions = q.total || 0
-  } catch (_) {}
-  try {
-    const m = await pageModels({ pageNum: 1, pageSize: 1 })
-    stats.value.models = m.total || 0
-  } catch (_) {}
-  // evaluations 等 FR-04 接上
-  stats.value.evaluations = 0
+    const s = await getDashboardStats()
+    stats.value.questions = s.questions || 0
+    stats.value.models = s.models || 0
+    stats.value.evaluations = s.evaluations || 0
+    stats.value.scores = s.scores || 0
+  } catch (_) {
+    try {
+      const q = await pageQuestions({ pageNum: 1, pageSize: 1 })
+      stats.value.questions = q.total || 0
+    } catch (_) {}
+    try {
+      const m = await pageModels({ pageNum: 1, pageSize: 1 })
+      stats.value.models = m.total || 0
+    } catch (_) {}
+  }
+  try { leaderboard.value = await arenaRanking() } catch { leaderboard.value = [] }
 })
 
-const modules = [
-  { icon: '📝', title: '问题管理',     desc: '管理评测题目,支持单题录入、批量导入 CSV',     path: 'question',    status: 'done' },
-  { icon: '🤖', title: '模型配置',     desc: '添加和管理多提供商模型,M3/OpenAI/智谱 等',     path: 'model',       status: 'done' },
-  { icon: '⚔️', title: '对比评测',     desc: '盲测投票式对比两个模型的回答,得出 Elo 排名', path: 'arena',       status: 'new' },
-  { icon: '🚀', title: '评测任务',     desc: '创建评测批次,选问题 × 选模型,异步执行',       path: 'evaluation',  status: 'todo' },
-  { icon: '⭐', title: '多维评分',     desc: '准确性 / 流畅性 / 创造性 / 安全性 4 维评分',   path: 'score',       status: 'todo' },
-  { icon: '📊', title: '一致性分析',   desc: 'Fleiss Kappa 评分员一致性 + 争议样本识别',    path: 'stats',       status: 'todo' },
-  { icon: '💰', title: '成本统计',     desc: '按模型 / 时间 / 评测 维度聚合调用成本',       path: 'billing',     status: 'todo' },
-  { icon: '📥', title: '报告导出',     desc: '评测结果导出 Excel / PDF 报告',                path: 'export',      status: 'todo' },
-  { icon: '👥', title: '用户管理',     desc: '管理员可创建用户、分配角色、禁用账号',         path: 'users',       status: 'todo', adminOnly: true }
+// 全部模块定义(每个有 minRole 最低门槛)
+const allModules = [
+  { icon: '📝', title: '问题管理',     desc: '管理评测题目,支持单题录入、批量导入 CSV',     path: 'question',    minRole: 'SCORER' },
+  { icon: '🤖', title: '模型配置',     desc: '添加和管理多提供商模型,M3/OpenAI/智谱 等',     path: 'model',       minRole: 'ORGANIZER' },
+  { icon: '⚔️', title: '对比评测',     desc: '盲测投票式对比两个模型的回答,得出 Elo 排名', path: 'arena',       minRole: 'VISITOR' },
+  { icon: '🚀', title: '评测任务',     desc: '创建评测批次,选问题 × 选模型,异步执行',       path: 'evaluation',  minRole: 'ORGANIZER' },
+  { icon: '⭐', title: '多维评分',     desc: '准确性 / 流畅性 / 创造性 / 安全性 4 维评分',   path: 'score',       minRole: 'SCORER' },
+  { icon: '📊', title: '一致性分析',   desc: 'Fleiss Kappa 评分员一致性 + 争议样本识别',    path: 'stats',       minRole: 'SCORER' },
+  { icon: '💰', title: '成本统计',     desc: '按模型 / 时间 / 评测 维度聚合调用成本',       path: 'billing',     minRole: 'ORGANIZER' },
+  { icon: '📥', title: '报告导出',     desc: '评测结果导出 Excel / PDF 报告',                path: 'export',      minRole: 'VISITOR' },
+  { icon: '👥', title: '用户管理',     desc: '管理员可创建用户、分配角色、禁用账号',         path: 'users',       minRole: 'ADMIN' }
 ]
 
-// 排行榜 mock 数据(等后端接上后改为 listEnabledModels)
-const leaderboard = [
-  { rank: 1, name: 'gemini-3-pro',      score: 1489, ci: '-',      votes: 26385, dev: 'Google',     license: 'Proprietary' },
-  { rank: 2, name: 'grok-4.1-thinking', score: 1477, ci: '-',      votes: 26505, dev: 'xAI',        license: 'Proprietary' },
-  { rank: 3, name: 'gemini-3-flash',    score: 1471, ci: '-',      votes: 11599, dev: 'Google',     license: 'Proprietary' },
-  { rank: 4, name: 'claude-opus-4-5',   score: 1468, ci: '-',      votes: 18518, dev: 'Anthropic',  license: 'Proprietary' },
-  { rank: 5, name: 'claude-opus-4-5-nt',score: 1467, ci: '-',      votes: 19770, dev: 'Anthropic',  license: 'Proprietary' },
-  { rank: 6, name: 'grok-4.1',          score: 1466, ci: '-',      votes: 30490, dev: 'xAI',        license: 'Proprietary' },
-  { rank: 7, name: 'M3-Plus',           score: 1464, ci: '-',      votes: 5530,  dev: 'MiniMax',  license: 'Proprietary' },
-  { rank: 8, name: 'gpt-5.1-high',      score: 1460, ci: '-',      votes: 23068, dev: 'OpenAI',     license: 'Proprietary' },
-  { rank: 9, name: 'claude-sonnet-4-5', score: 1452, ci: '-',      votes: 37043, dev: 'Anthropic',  license: 'Proprietary' },
-  { rank: 10,name: 'gemini-2.5-pro',    score: 1450, ci: '-',      votes: 86296, dev: 'Google',     license: 'Proprietary' }
-]
+// 根据当前 role 过滤模块
+const modules = computed(() => {
+  const myRank = ROLE_RANK[auth.role] || 0
+  return allModules.filter(m => myRank >= (ROLE_RANK[m.minRole] || 0))
+})
 
 function go(path) { router.push({ name: path }) }
 </script>
 
 <template>
   <div>
-    <!-- Hero -->
-    <section class="hero">
+    <!-- Hero:访客模式 — 简化版,只展示可看的内容 -->
+    <section v-if="isVisitor" class="hero visitor-hero">
+      <h1>👋 欢迎,{{ auth.user?.username }}!</h1>
+      <p>
+        你是「访客」角色,可以浏览公开的模型对比排行榜和评测报告,
+        但不能创建/修改任何内容。如需参与投票或评分,
+        请联系管理员升级为「评分员」账号。
+      </p>
+      <div class="hero-actions">
+        <el-button type="primary" size="large" @click="go('arena')">
+          🏆 查看模型排行榜
+        </el-button>
+        <el-button size="large" @click="go('export')">
+          📥 浏览公开报告
+        </el-button>
+      </div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="max-width:600px;margin:24px auto 0"
+      >
+        <template #title>访客权限说明</template>
+        可访问:首页 · 对比评测(只读) · 报告导出(只读) · 个人中心<br/>
+        不可访问:问题管理 · 模型配置 · 评测任务 · 多维评分 · 一致性分析 · 成本统计 · 用户管理
+      </el-alert>
+    </section>
+
+    <!-- Hero:正常模式 -->
+    <section v-else class="hero">
       <h1>EvalArena · 多模型对比评测平台</h1>
       <p>
         通过真实用户的盲测投票,权威评估 GPT-4、Claude、Gemini、MiniMax 等
@@ -90,10 +126,13 @@ function go(path) { router.push({ name: path }) }
       </div>
     </section>
 
-    <!-- 功能模块 -->
+    <!-- 功能模块(只显示当前角色可访问的) -->
     <section class="page-wrap">
       <h2 class="page-title">🚀 功能模块</h2>
-      <p class="page-subtitle">点击进入对应模块 · 已实现 ✅ / 待开发 🔧</p>
+      <p class="page-subtitle">
+        <template v-if="isVisitor">访客可访问 {{ modules.length }} 个模块</template>
+        <template v-else>当前角色「{{ auth.role }}」可访问 {{ modules.length }} 个模块</template>
+      </p>
       <div class="feature-grid">
         <div
           v-for="m in modules"
@@ -134,15 +173,20 @@ function go(path) { router.push({ name: path }) }
               <tr>
                 <th style="width:80px">排名</th>
                 <th style="text-align:left">模型名称</th>
-                <th style="width:110px">评分</th>
-                <th style="width:120px">置信区间</th>
-                <th style="width:120px">投票数</th>
-                <th style="width:160px">开发者</th>
-                <th style="width:140px">许可证</th>
+                <th style="width:110px">Elo</th>
+                <th style="width:120px">胜率</th>
+                <th style="width:160px">战绩 (W·T·L)</th>
+                <th style="width:120px">对局数</th>
+                <th style="width:140px">状态</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in leaderboard" :key="r.rank" :class="`lb-row rank-${r.rank}`">
+              <tr v-if="!leaderboard.length">
+                <td colspan="7" style="text-align:center;color:#94a3b8;padding:32px">
+                  暂无投票数据 — 前往「对比评测」开始盲评
+                </td>
+              </tr>
+              <tr v-for="r in leaderboard" :key="r.modelId" :class="`lb-row rank-${r.rank}`">
                 <td>
                   <span class="lb-medal">
                     <template v-if="r.rank === 1">🥇</template>
@@ -151,15 +195,16 @@ function go(path) { router.push({ name: path }) }
                     <template v-else>{{ r.rank }}</template>
                   </span>
                 </td>
-                <td style="text-align:left"><strong>{{ r.name }}</strong></td>
-                <td><span class="lb-score">{{ r.score }}</span></td>
-                <td>{{ r.ci }}</td>
-                <td>{{ r.votes.toLocaleString() }}</td>
-                <td>{{ r.dev }}</td>
+                <td style="text-align:left">
+                  <strong>{{ r.modelName }}</strong>
+                  <el-tag size="small" style="margin-left:6px">{{ r.provider }}</el-tag>
+                </td>
+                <td><span class="lb-score">{{ r.elo }}</span></td>
+                <td>{{ ((r.winRate||0) * 100).toFixed(1) }}%</td>
+                <td>{{ (r.wins||0) }}W · {{ (r.ties||0) }}T · {{ (r.losses||0) }}L</td>
+                <td>{{ (r.games||0) }} 局</td>
                 <td>
-                  <el-tag size="small" :type="r.license === 'Proprietary' ? 'danger' : 'success'" effect="light" round>
-                    {{ r.license }}
-                  </el-tag>
+                  <el-tag size="small" type="success" effect="light" round>活跃</el-tag>
                 </td>
               </tr>
             </tbody>

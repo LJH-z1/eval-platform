@@ -7,26 +7,41 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { computed } from 'vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+// 角色等级(VISITOR 最低,ADMIN 最高)
+const ROLE_RANK = { VISITOR: 1, SCORER: 2, ORGANIZER: 3, ADMIN: 4 }
+
+// 每个菜单项的最低角色门槛(访客 VISITOR 只能看到首页 + 对比评测 + 报告导出)
 const navItems = [
-  { name: 'dashboard',  label: '首页',      icon: '🏠' },
-  { name: 'question',   label: '问题管理',  icon: '📝' },
-  { name: 'model',      label: '模型配置',  icon: '🤖' },
-  { name: 'arena',      label: '对比评测',  icon: '⚔️' },
-  { name: 'evaluation', label: '评测任务',  icon: '🚀' },
-  { name: 'score',      label: '多维评分',  icon: '⭐' },
-  { name: 'stats',      label: '一致性分析',icon: '📊' },
-  { name: 'billing',    label: '成本统计',  icon: '💰' },
-  { name: 'export',     label: '报告导出',  icon: '📥' }
+  { name: 'dashboard',  label: '首页',      icon: '🏠', minRole: 'VISITOR' },
+  { name: 'question',   label: '问题管理',  icon: '📝', minRole: 'SCORER' },
+  { name: 'model',      label: '模型配置',  icon: '🤖', minRole: 'ORGANIZER' },
+  { name: 'arena',      label: '对比评测',  icon: '⚔️', minRole: 'VISITOR' },
+  { name: 'evaluation', label: '评测任务',  icon: '🚀', minRole: 'ORGANIZER' },
+  { name: 'score',      label: '多维评分',  icon: '⭐', minRole: 'SCORER' },
+  { name: 'stats',      label: '一致性分析',icon: '📊', minRole: 'SCORER' },
+  { name: 'billing',    label: '成本统计',  icon: '💰', minRole: 'ORGANIZER' },
+  { name: 'export',     label: '报告导出',  icon: '📥', minRole: 'VISITOR' }
+]
+
+const publicNavItems = [
+  { name: 'register',   label: '注册',      icon: '✍️' }
 ]
 
 const adminItems = [
   { name: 'users', label: '用户管理', icon: '👥' }
 ]
+
+const visibleNavItems = computed(() => {
+  if (!auth.isLoggedIn) return []
+  const myRank = ROLE_RANK[auth.role] || 0
+  return navItems.filter(n => myRank >= (ROLE_RANK[n.minRole] || 0))
+})
 
 function go(name) {
   router.push({ name })
@@ -55,7 +70,7 @@ async function onLogout() {
 
         <nav class="nav">
           <a
-            v-for="item in navItems"
+            v-for="item in visibleNavItems"
             :key="item.name"
             class="nav-item"
             :class="{ active: route.name === item.name || route.matched.some(r => r.name === item.name) }"
@@ -69,6 +84,17 @@ async function onLogout() {
             v-if="auth.isAdmin"
             :key="item.name"
             class="nav-item"
+            :class="{ active: route.name === item.name }"
+            @click="go(item.name)"
+          >
+            <span class="icon">{{ item.icon }}</span>
+            <span>{{ item.label }}</span>
+          </a>
+          <a
+            v-for="item in publicNavItems"
+            v-if="!auth.isLoggedIn"
+            :key="item.name"
+            class="nav-item public"
             :class="{ active: route.name === item.name }"
             @click="go(item.name)"
           >

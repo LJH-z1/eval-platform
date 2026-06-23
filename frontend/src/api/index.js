@@ -92,3 +92,13 @@ export async function downloadPdfUrl(id) {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+// ====== Arena 盲评 + Elo(由刘家豪实现 ✅) ======
+export function arenaQuickEval(data) { return request.post('/arena/quick-eval', data) }
+export function arenaBatchEval(data) { return request.post('/arena/batch-eval', data) }
+export function arenaVote(data) { return request.post('/arena/vote', data) }
+export function arenaRanking() { return request.get('/arena/ranking') }
+
+// ====== Dashboard 总览(刘家豪 ✅) ======
+export function getDashboardStats() { return request.get('/dashboard/stats') }
+export function getDashboardRecent(limit = 10) { return request.get('/dashboard/recent', { params: { limit } }) }

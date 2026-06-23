@@ -1,151 +1,236 @@
 <script setup>
 /**
- * 对比评测 (Arena) - LMArena 风格核心页
+ * 对比评测 Arena - LMArena 风格
  * <p>
- * 类似 lmarena.ai 投票页:
- * - 用户输入 prompt
- * - 系统盲测两个模型回答(隐藏名字,投票后揭晓)
- * - 投票 A / B / Tie / Both bad
- * <p>
- * 数据流:
- * - 加载已启用模型:listEnabledModels()
- * - 单次提问:直接通过 /api/evaluations/{id}/run 触发真评测(简化为单问题即时)
- * - 当前实现:仍用 mock + 真模型列表(真 API 等异步评测后页面会接)
+ * 两种模式:
+ * - 单题模式:输入 1 题,随机 2 模型对比,投票
+ * - 批量模式:输入 N 题(每行一题),后端并发跑,逐题投票
  */
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listEnabledModels, runEvaluation, getEvaluation } from '@/api'
+import { listEnabledModels, arenaQuickEval, arenaBatchEval, arenaVote, arenaRanking } from '@/api'
 
-const phase = ref('input')
+const phase = ref('input')           // input | compare | batch
+const mode = ref('single')           // single | batch
 const promptText = ref('')
+const batchPrompts = ref('')         // 批量模式的多行输入
 const left = ref(null)
 const right = ref(null)
 const pickedSide = ref(null)
 const winnerRevealed = ref(false)
+const evaluationId = ref(null)
+const sending = ref(false)
+const ranking = ref([])
 
 const modelList = ref([])
-const realApiAvailable = ref(false)
+
+// 批量相关
+const batchItems = ref([])           // 后端返回的 N 条
+const batchIdx = ref(0)              // 当前题
+const batchDone = ref(false)         // 全部投完
+const batchLoading = ref(false)      // 批量请求中
 
 onMounted(async () => {
-  try {
-    modelList.value = await listEnabledModels()
-    realApiAvailable.value = modelList.value.length >= 2
-  } catch (_) {
-    // 后端不可达 — 用 mock
-    modelList.value = mockModels
-    realApiAvailable.value = false
-  }
+  await loadModels()
+  await loadRanking()
 })
 
-// ---- Mock 模型列表(后端未接时 fallback) ----
-const mockModels = [
-  { id: 1, name: 'M3-Plus',      provider: 'M3' },
-  { id: 2, name: 'gpt-4o-mini',  provider: 'OPENAI' },
-  { id: 3, name: 'glm-4-plus',   provider: 'ZHIPU' },
-  { id: 4, name: 'qwen-max',     provider: 'QWEN' }
-]
-
-// ---- Mock 回答模板(让演示有真实感,无后端时用) ----
-const mockAnswers = [
-  (q) => `关于"${q}",这是一个非常好的问题。\n\n首先,从定义上说,${q.slice(0, 20)}... 涉及多个核心要素。我会从以下几个角度来分析:\n\n1. 理论层面:基础概念与原理\n2. 实践层面:具体应用场景\n3. 发展趋势:未来可能演化方向\n\n综合来看,这个问题没有一个简单的是非答案,而是需要根据具体场景灵活处理。`,
-  (q) => `让我来回答你的问题:"${q}"\n\n这是一个经典的开放性问题。我认为关键点在于:\n\n• 核心要素 A — 是问题的关键所在\n• 核心要素 B — 容易被忽视但很重要\n• 注意事项 — 实际应用时需要关注\n\n建议你可以进一步明确具体场景,这样我能给出更精准的回答。`
-]
+async function loadModels() {
+  try { modelList.value = await listEnabledModels() }
+  catch { modelList.value = [] }
+}
+async function loadRanking() {
+  try { ranking.value = await arenaRanking() } catch { ranking.value = [] }
+}
 
 function pickTwo() {
   if (modelList.value.length < 2) {
-    ElMessage.warning('至少需要 2 个已启用模型才能对比')
+    ElMessage.warning('至少需要 2 个已启用模型')
     return null
   }
   const pool = [...modelList.value]
   const a = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]
   const b = pool[Math.floor(Math.random() * pool.length)]
-  if (Math.random() < 0.5) return [a, b]
-  return [b, a]
+  return Math.random() < 0.5 ? [a, b] : [b, a]
 }
 
-async function callMock(model, prompt, idx) {
-  await new Promise(r => setTimeout(r, 600 + Math.random() * 900))
-  return {
-    model,
-    content: mockAnswers[idx % mockAnswers.length](prompt),
-    latency: 600 + Math.floor(Math.random() * 900)
-  }
-}
-
-async function onSubmit() {
-  if (!promptText.value.trim()) {
-    ElMessage.warning('请输入要测试的问题')
-    return
-  }
+// ============== 单题模式 ==============
+async function onSingleSubmit() {
+  if (!promptText.value.trim()) { ElMessage.warning('请输入要测试的问题'); return }
   const pair = pickTwo()
   if (!pair) return
+  sending.value = true
   phase.value = 'compare'
   winnerRevealed.value = false
   pickedSide.value = null
   left.value = { loading: true }
   right.value = { loading: true }
-
-  if (realApiAvailable.value) {
-    // 真 API 模式:创建 1 题 2 模型的评测,异步等待
-    await runViaApi(pair)
-  } else {
-    // Mock 模式
-    const [l, r] = await Promise.all([
-      callMock(pair[0], promptText.value, 0),
-      callMock(pair[1], promptText.value, 1)
-    ])
-    left.value = l
-    right.value = r
+  try {
+    const res = await arenaQuickEval({
+      prompt: promptText.value, modelAId: pair[0].id, modelBId: pair[1].id
+    })
+    evaluationId.value = res.evaluationId
+    left.value = {
+      loading: false, answerId: res.left.answerId, content: res.left.content,
+      latency: res.left.latencyMs, modelId: res.left.modelId, modelName: res.left.modelName,
+      modelProvider: res.left.modelProvider, success: res.left.success, errorMessage: res.left.errorMessage
+    }
+    right.value = {
+      loading: false, answerId: res.right.answerId, content: res.right.content,
+      latency: res.right.latencyMs, modelId: res.right.modelId, modelName: res.right.modelName,
+      modelProvider: res.right.modelProvider, success: res.right.success, errorMessage: res.right.errorMessage
+    }
+  } catch (e) {
+    ElMessage.error('快速评测失败:' + (e?.message || '未知错误'))
+    phase.value = 'input'
+  } finally {
+    sending.value = false
   }
 }
 
-/**
- * 真实 API 路径:
- * 1) 创建 evaluation(name="Arena-YYYYMMDD-HHmmss", 2 models, 1 question)
- * 2) 创建一个临时 question(content=prompt),questionId 入参
- * 3) 启动 run,轮询直到完成
- * 4) 拉 answer 列表填充 left/right
- *
- * 简化:用 mock 替代真 API 调用(真 API 需要 question 入库),但用真模型列表
- */
-async function runViaApi(pair) {
-  // 简化版:用 mock + 真模型名展示
-  await new Promise(r => setTimeout(r, 1200))
-  const [l, r] = await Promise.all([
-    callMock(pair[0], promptText.value, 0),
-    callMock(pair[1], promptText.value, 1)
-  ])
-  left.value = l
-  right.value = r
-  ElMessage.info('当前为前端 mock 演示,真 API 调用需在"评测任务"页创建正式评测')
-}
-
-function onVote(side) {
+async function onSingleVote(side) {
+  if (winnerRevealed.value) return
   pickedSide.value = side
   winnerRevealed.value = true
-  console.log('[vote]', side, {
-    prompt: promptText.value,
-    A: left.value.model.name,
-    B: right.value.model.name,
-    picked: side
-  })
+  try {
+    await arenaVote({
+      evaluationId: evaluationId.value, prompt: promptText.value,
+      leftModelId: left.value.modelId, rightModelId: right.value.modelId, winner: side
+    })
+    ElMessage.success('投票已记录')
+    loadRanking()
+  } catch (e) {
+    ElMessage.error('投票失败:' + (e?.message || '未知错误'))
+  }
 }
 
-function onNext() {
+function onSingleNext() {
   promptText.value = ''
   phase.value = 'input'
   left.value = null
   right.value = null
   pickedSide.value = null
   winnerRevealed.value = false
+  evaluationId.value = null
 }
 
+// ============== 批量模式 ==============
+async function onBatchStart() {
+  const lines = batchPrompts.value.split('\n').map(s => s.trim()).filter(Boolean)
+  if (lines.length === 0) { ElMessage.warning('请至少输入 1 道题(每行一题)'); return }
+  if (lines.length > 30) { ElMessage.warning('批量最多 30 题'); return }
+  const pair = pickTwo()
+  if (!pair) return
+
+  batchLoading.value = true
+  batchItems.value = []
+  batchIdx.value = 0
+  batchDone.value = false
+  phase.value = 'batch'
+  ElMessage.info(`开始批量评测 ${lines.length} 题 × 2 模型(${pair[0].name} vs ${pair[1].name}),请稍候...`)
+
+  try {
+    const start = Date.now()
+    const res = await arenaBatchEval({
+      prompts: lines, modelAId: pair[0].id, modelBId: pair[1].id
+    })
+    const ms = Date.now() - start
+    // 给每个 item 加 voted 状态
+    batchItems.value = res.map((it, i) => ({
+      ...it,
+      picked: null,
+      voted: false,
+      modelAName: pair[0].name,
+      modelBName: pair[1].name
+    }))
+    ElMessage.success(`批量完成 ${res.length} 题,耗时 ${(ms/1000).toFixed(1)}s`)
+    // 展示第 1 题
+    showBatchItem(0)
+  } catch (e) {
+    ElMessage.error('批量评测失败:' + (e?.message || '未知错误'))
+    phase.value = 'input'
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function showBatchItem(idx) {
+  if (idx < 0 || idx >= batchItems.value.length) return
+  batchIdx.value = idx
+  const it = batchItems.value[idx]
+  evaluationId.value = it.evaluationId
+  promptText.value = it.prompt
+  left.value = {
+    loading: false, answerId: it.left.answerId, content: it.left.content,
+    latency: it.left.latencyMs, modelId: it.left.modelId, modelName: it.left.modelName,
+    modelProvider: it.left.modelProvider, success: it.left.success, errorMessage: it.left.errorMessage
+  }
+  right.value = {
+    loading: false, answerId: it.right.answerId, content: it.right.content,
+    latency: it.right.latencyMs, modelId: it.right.modelId, modelName: it.right.modelName,
+    modelProvider: it.right.modelProvider, success: it.right.success, errorMessage: it.right.errorMessage
+  }
+  pickedSide.value = it.picked
+  winnerRevealed.value = it.voted
+}
+
+async function onBatchVote(side) {
+  if (winnerRevealed.value) return
+  pickedSide.value = side
+  winnerRevealed.value = true
+  // 记录到 batchItems
+  const it = batchItems.value[batchIdx.value]
+  it.picked = side
+  it.voted = true
+  try {
+    await arenaVote({
+      evaluationId: it.evaluationId, prompt: it.prompt,
+      leftModelId: it.left.modelId, rightModelId: it.right.modelId, winner: side
+    })
+  } catch (e) {
+    ElMessage.error('投票失败:' + (e?.message || '未知错误'))
+  }
+}
+
+function onBatchNext() {
+  if (batchIdx.value + 1 >= batchItems.value.length) {
+    // 全部投完
+    batchDone.value = true
+    loadRanking()
+    return
+  }
+  showBatchItem(batchIdx.value + 1)
+}
+
+function onBatchSkip() {
+  if (batchIdx.value + 1 >= batchItems.value.length) {
+    batchDone.value = true
+    return
+  }
+  showBatchItem(batchIdx.value + 1)
+}
+
+function onBatchRestart() {
+  batchPrompts.value = ''
+  batchItems.value = []
+  batchIdx.value = 0
+  batchDone.value = false
+  phase.value = 'input'
+}
+
+// ============== 共享 ==============
+const currentItem = computed(() => batchItems.value[batchIdx.value])
+const batchProgress = computed(() => {
+  if (batchItems.value.length === 0) return 0
+  return Math.round((batchItems.value.filter(it => it.voted).length / batchItems.value.length) * 100)
+})
+const batchVoted = computed(() => batchItems.value.filter(it => it.voted).length)
 const voteResultText = computed(() => {
   if (!pickedSide.value) return ''
-  if (pickedSide.value === 'A')  return `✅ 你选择了 A 更好`
-  if (pickedSide.value === 'B')  return `✅ 你选择了 B 更好`
-  if (pickedSide.value === 'tie')return `🤝 你认为两个回答一样好`
-  if (pickedSide.value === 'bad')return `👎 你认为两个回答都不好`
+  if (pickedSide.value === 'A')   return '✅ 你选择了 A 更好'
+  if (pickedSide.value === 'B')   return '✅ 你选择了 B 更好'
+  if (pickedSide.value === 'tie') return '🤝 你认为两个回答一样好'
+  if (pickedSide.value === 'bad') return '👎 你认为两个回答都不好'
   return ''
 })
 </script>
@@ -154,43 +239,94 @@ const voteResultText = computed(() => {
   <div class="page-wrap-narrow">
     <h2 class="page-title">⚔️ 对比评测 Arena</h2>
     <p class="page-subtitle">
-      输入问题,系统盲测两个模型的回答(隐藏名字),投票选出更好的一个。
+      盲测两个模型的回答,投票选出更好的一个。每次投票更新 Elo 排名。
     </p>
 
-    <!-- 输入阶段 -->
-    <template v-if="phase === 'input'">
+    <!-- 实时排行榜 -->
+    <el-card v-if="ranking.length" shadow="never" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0;font-size:16px">🏆 实时 Elo 排行榜</h3>
+        <el-button text size="small" @click="loadRanking">刷新</el-button>
+      </div>
+      <el-table :data="ranking.slice(0, 10)" size="small" stripe>
+        <el-table-column prop="rank" label="排名" width="60" />
+        <el-table-column label="模型" min-width="180">
+          <template #default="{ row }">
+            <strong>{{ row.modelName }}</strong>
+            <el-tag size="small" type="info" style="margin-left:6px">{{ row.provider }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="elo" label="Elo" width="80" sortable />
+        <el-table-column label="战绩" width="120">
+          <template #default="{ row }">
+            <span style="color:#16a34a">{{ row.wins }}W</span> ·
+            <span style="color:#64748b">{{ row.ties }}T</span> ·
+            <span style="color:#dc2626">{{ row.losses }}L</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="胜率" width="80">
+          <template #default="{ row }">
+            {{ (row.winRate * 100).toFixed(1) }}%
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 模式切换 -->
+    <el-tabs v-model="mode" @tab-change="(v) => { if (v === 'single') phase = 'input' }" style="margin-bottom:16px">
+      <el-tab-pane label="单题模式" name="single" />
+      <el-tab-pane label="批量模式" name="batch" />
+    </el-tabs>
+
+    <!-- 单题输入 -->
+    <template v-if="mode === 'single' && phase === 'input'">
       <el-card shadow="never">
         <el-input
           v-model="promptText"
-          type="textarea"
-          :rows="6"
-          placeholder="输入你的问题...&#10;例如:请用 Python 写一个快速排序算法,要求带详细注释。&#10;或者:解释一下 Transformer 的注意力机制。"
-          maxlength="4000"
-          show-word-limit
+          type="textarea" :rows="6"
+          placeholder="输入你的问题..."
+          maxlength="4000" show-word-limit
+          :disabled="sending"
         />
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
-          <div style="font-size:12px;color:#94a3b8">
-            提示词长度建议 50-500 字 · 可输入代码、数学公式、自然语言
-          </div>
-          <el-button type="primary" size="large" @click="onSubmit" :icon="'Promotion'">
+          <div style="font-size:12px;color:#94a3b8">已加载 {{ modelList.length }} 个已启用模型</div>
+          <el-button type="primary" size="large" :loading="sending" @click="onSingleSubmit" icon="Promotion">
             发送对比
           </el-button>
         </div>
       </el-card>
-
-      <el-alert type="info" :closable="false" show-icon style="margin-top:16px">
-        <template #title>已加载 {{ modelList.length }} 个模型可参与对比</template>
-        <span v-if="realApiAvailable">✓ 已连后端,真模型列表生效</span>
-        <span v-else>⚠️ 后端未连接,使用内置 mock 模型演示</span>
-        <br/>
-        Arena 当前为前端 mock 演示;真 API 评测请到「评测任务 → 新建评测」页操作,会异步跑完写库。
-      </el-alert>
     </template>
 
-    <!-- 对比阶段 -->
-    <template v-if="phase === 'compare'">
+    <!-- 批量输入 -->
+    <template v-if="mode === 'batch' && phase === 'input'">
+      <el-card shadow="never">
+        <div style="margin-bottom:8px;font-size:14px;font-weight:600">📋 批量输入(每行一题,最多 30 题)</div>
+        <el-input
+          v-model="batchPrompts"
+          type="textarea" :rows="10"
+          placeholder="用 Python 写 hello world
+用 JS 写阶乘函数
+解释一下 REST API
+..."
+          :disabled="batchLoading"
+        />
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+          <div style="font-size:12px;color:#94a3b8">
+            共 {{ batchPrompts.split('\n').filter(s => s.trim()).length }} 题 · 模型随机 2 个 · 后端并发跑
+          </div>
+          <el-button type="primary" size="large" :loading="batchLoading" @click="onBatchStart" icon="Promotion">
+            开始批量对比
+          </el-button>
+        </div>
+      </el-card>
+    </template>
+
+    <!-- 单题对比 -->
+    <template v-if="phase === 'compare' && left && right">
       <div class="arena-prompt">
-        <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">📝 你的问题</div>
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">
+          📝 {{ mode === 'batch' ? `第 ${batchIdx + 1}/${batchItems.length} 题` : '你的问题' }}
+        </div>
         {{ promptText }}
       </div>
 
@@ -201,7 +337,7 @@ const voteResultText = computed(() => {
             winner: winnerRevealed && pickedSide === 'A',
             loser:  winnerRevealed && (pickedSide === 'B' || pickedSide === 'tie' || pickedSide === 'bad')
           }"
-          @click="!winnerRevealed && onVote('A')"
+          @click="!winnerRevealed && (mode === 'single' ? onSingleVote('A') : onBatchVote('A'))"
         >
           <span class="label A">A</span>
           <div v-if="left?.loading" class="loading-area">
@@ -210,7 +346,7 @@ const voteResultText = computed(() => {
           </div>
           <template v-else>
             <div class="model-name">模型 A · 延迟 {{ left.latency }}ms</div>
-            <div class="answer">{{ left.content }}</div>
+            <div class="answer">{{ left.content || left.errorMessage || '(无内容)' }}</div>
           </template>
         </div>
 
@@ -220,7 +356,7 @@ const voteResultText = computed(() => {
             winner: winnerRevealed && pickedSide === 'B',
             loser:  winnerRevealed && (pickedSide === 'A' || pickedSide === 'tie' || pickedSide === 'bad')
           }"
-          @click="!winnerRevealed && onVote('B')"
+          @click="!winnerRevealed && (mode === 'single' ? onSingleVote('B') : onBatchVote('B'))"
         >
           <span class="label B">B</span>
           <div v-if="right?.loading" class="loading-area">
@@ -229,16 +365,17 @@ const voteResultText = computed(() => {
           </div>
           <template v-else>
             <div class="model-name">模型 B · 延迟 {{ right.latency }}ms</div>
-            <div class="answer">{{ right.content }}</div>
+            <div class="answer">{{ right.content || right.errorMessage || '(无内容)' }}</div>
           </template>
         </div>
       </div>
 
       <div v-if="!winnerRevealed" class="arena-actions">
-        <el-button size="large" @click="onVote('A')">A 更好 👈</el-button>
-        <el-button size="large" @click="onVote('tie')">🤝 平局</el-button>
-        <el-button size="large" @click="onVote('B')">👉 B 更好</el-button>
-        <el-button size="large" type="danger" plain @click="onVote('bad')">👎 都不好</el-button>
+        <el-button size="large" :disabled="sending" @click="mode === 'single' ? onSingleVote('A') : onBatchVote('A')">A 更好 👈</el-button>
+        <el-button size="large" :disabled="sending" @click="mode === 'single' ? onSingleVote('tie') : onBatchVote('tie')">🤝 平局</el-button>
+        <el-button size="large" :disabled="sending" @click="mode === 'single' ? onSingleVote('B') : onBatchVote('B')">👉 B 更好</el-button>
+        <el-button size="large" type="danger" plain :disabled="sending" @click="mode === 'single' ? onSingleVote('bad') : onBatchVote('bad')">👎 都不好</el-button>
+        <el-button v-if="mode === 'batch'" size="large" plain @click="onBatchSkip">⏭ 跳过</el-button>
       </div>
 
       <div v-else class="vote-result">
@@ -248,20 +385,73 @@ const voteResultText = computed(() => {
           <div class="reveal">
             <div>
               <span class="reveal-label">A 是:</span>
-              <strong>{{ left.model.name }}</strong>
-              <el-tag size="small" style="margin-left:8px">{{ left.model.provider }}</el-tag>
+              <strong>{{ left.modelName }}</strong>
+              <el-tag size="small" style="margin-left:8px">{{ left.modelProvider }}</el-tag>
             </div>
             <div>
               <span class="reveal-label">B 是:</span>
-              <strong>{{ right.model.name }}</strong>
-              <el-tag size="small" style="margin-left:8px">{{ right.model.provider }}</el-tag>
+              <strong>{{ right.modelName }}</strong>
+              <el-tag size="small" style="margin-left:8px">{{ right.modelProvider }}</el-tag>
             </div>
           </div>
           <div style="text-align:center;margin-top:16px">
-            <el-button type="primary" size="large" @click="onNext">下一题 →</el-button>
+            <el-button v-if="mode === 'single'" type="primary" size="large" @click="onSingleNext">下一题 →</el-button>
+            <el-button v-else type="primary" size="large" @click="onBatchNext">
+              {{ batchIdx + 1 >= batchItems.length ? '查看汇总 →' : `下一题 (${batchIdx + 2}/${batchItems.length}) →` }}
+            </el-button>
           </div>
         </el-card>
       </div>
+    </template>
+
+    <!-- 批量全部完成 -->
+    <template v-if="phase === 'batch' && batchDone">
+      <el-card shadow="never">
+        <h3 style="margin-top:0">🎉 批量完成!共 {{ batchItems.length }} 题</h3>
+        <el-progress :percentage="batchProgress" :status="batchProgress === 100 ? 'success' : 'warning'" />
+        <div style="margin-top:8px;font-size:14px">
+          已投 {{ batchVoted }} 题 · 跳过 {{ batchItems.length - batchVoted }} 题
+        </div>
+        <el-table :data="batchItems" size="small" stripe style="margin-top:16px">
+          <el-table-column label="#" type="index" width="50" />
+          <el-table-column label="题目" min-width="300">
+            <template #default="{ row }">
+              {{ row.prompt.length > 50 ? row.prompt.slice(0, 50) + '...' : row.prompt }}
+            </template>
+          </el-table-column>
+          <el-table-column label="A 状态" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row.left.success" type="success" size="small">OK</el-tag>
+              <el-tag v-else type="danger" size="small">失败</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="B 状态" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row.right.success" type="success" size="small">OK</el-tag>
+              <el-tag v-else type="danger" size="small">失败</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="你的投票" width="120">
+            <template #default="{ row }">
+              <el-tag v-if="!row.voted" type="info" size="small">跳过</el-tag>
+              <el-tag v-else-if="row.picked === 'A'" type="success" size="small">A 更好</el-tag>
+              <el-tag v-else-if="row.picked === 'B'" type="primary" size="small">B 更好</el-tag>
+              <el-tag v-else-if="row.picked === 'tie'" type="warning" size="small">平局</el-tag>
+              <el-tag v-else-if="row.picked === 'bad'" type="danger" size="small">都差</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="揭晓" min-width="200">
+            <template #default="{ row }">
+              <span style="font-size:12px">A: {{ row.left.modelName }} ({{ row.left.modelProvider }})</span><br/>
+              <span style="font-size:12px">B: {{ row.right.modelName }} ({{ row.right.modelProvider }})</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div style="text-align:center;margin-top:16px">
+          <el-button type="primary" size="large" @click="onBatchRestart">再来一批</el-button>
+          <el-button size="large" @click="mode = 'single'; phase = 'input'">切到单题</el-button>
+        </div>
+      </el-card>
     </template>
   </div>
 </template>

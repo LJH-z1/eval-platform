@@ -158,6 +158,26 @@ CREATE TABLE `audit_log` (
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表(刘家豪 FR-01)';
 
+-- -------------------------------------------------------------
+-- 8. arena_vote(Arena 盲评投票) 负责人:刘家豪
+-- -------------------------------------------------------------
+DROP TABLE IF EXISTS `arena_vote`;
+CREATE TABLE `arena_vote` (
+  `id`              BIGINT       NOT NULL AUTO_INCREMENT,
+  `evaluation_id`   BIGINT       COMMENT '关联的快速评测 ID(可空)',
+  `voter_id`        BIGINT       NOT NULL COMMENT '投票人 user_id',
+  `prompt`          VARCHAR(4000) NOT NULL COMMENT '用户提问',
+  `left_model_id`   BIGINT       NOT NULL COMMENT 'A 侧模型',
+  `right_model_id`  BIGINT       NOT NULL COMMENT 'B 侧模型',
+  `winner`          VARCHAR(10)  NOT NULL COMMENT 'A / B / tie / bad',
+  `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_voter` (`voter_id`),
+  KEY `idx_left` (`left_model_id`),
+  KEY `idx_right` (`right_model_id`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Arena 盲评投票(刘家豪)';
+
 -- =============================================================
 -- 初始化完成
 -- 接下来:

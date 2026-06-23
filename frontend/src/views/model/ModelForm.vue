@@ -190,6 +190,7 @@ onMounted(() => {
             <el-option label="文心一言" value="WENXIN" />
             <el-option label="月之暗面 Moonshot" value="KIMI" />
             <el-option label="OpenAI" value="OPENAI" />
+            <el-option label="Google Gemini" value="GEMINI" />
             <el-option label="自定义" value="CUSTOM" />
           </el-select>
           <span class="form-tip" v-if="isEdit">提供商创建后不允许修改</span>
