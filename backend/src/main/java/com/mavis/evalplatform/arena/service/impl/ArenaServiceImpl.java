@@ -61,13 +61,13 @@ public class ArenaServiceImpl implements ArenaService {
     });
 
     @Override
-    public Map<String, Object> quickEvaluate(String prompt, Long modelAId, Long modelBId, Long userId) {
+    public Map<String, Object> quickEvaluate(String prompt, Long modelAId, Long modelBId, String category, Long userId) {
         validate(prompt, modelAId, modelBId);
-        return doOne(prompt, modelAId, modelBId, userId);
+        return doOne(prompt, modelAId, modelBId, normalizeCategory(category), userId);
     }
 
     @Override
-    public List<Map<String, Object>> batchEvaluate(List<String> prompts, Long modelAId, Long modelBId, Long userId) {
+    public List<Map<String, Object>> batchEvaluate(List<String> prompts, Long modelAId, Long modelBId, String category, Long userId) {
         if (prompts == null || prompts.isEmpty()) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "prompts 不能为空");
         }
@@ -86,7 +86,8 @@ public class ArenaServiceImpl implements ArenaService {
             if (!StringUtils.hasText(p)) throw new BusinessException(ErrorCode.PARAM_INVALID, "第 " + (i+1) + " 题不能为空");
             if (p.length() > 4000) throw new BusinessException(ErrorCode.PARAM_INVALID, "第 " + (i+1) + " 题长度超过 4000");
         }
-        log.info("[Arena] batch-eval start: {} 题 × 2 模型 ({} vs {})", prompts.size(), modelAId, modelBId);
+        log.info("[Arena] batch-eval start: {} 题 × 2 模型 ({} vs {}) category={}", prompts.size(), modelAId, modelBId, category);
+        final String cat = normalizeCategory(category);
         // 预校验模型(只查 1 次)
         List<ModelConfig> models = modelConfigMapper.selectBatchIds(List.of(modelAId, modelBId));
         if (models.size() != 2) throw new BusinessException(ErrorCode.MODEL_NOT_FOUND, "模型不存在");
@@ -98,7 +99,7 @@ public class ArenaServiceImpl implements ArenaService {
             final int idx = i;
             futures.add(CompletableFuture.supplyAsync(() -> {
                 try {
-                    Map<String, Object> r = doOne(p, modelAId, modelBId, userId);
+                    Map<String, Object> r = doOne(p, modelAId, modelBId, cat, userId);
                     r.put("batchIndex", idx);
                     return r;
                 } catch (Exception ex) {
@@ -117,6 +118,11 @@ public class ArenaServiceImpl implements ArenaService {
         out.sort((a, b) -> Integer.compare((int) a.get("batchIndex"), (int) b.get("batchIndex")));
         log.info("[Arena] batch-eval done: {} 题", out.size());
         return out;
+    }
+
+    private static String normalizeCategory(String c) {
+        if (c == null || c.isBlank()) return "general";
+        return c.trim().toLowerCase();
     }
 
     private static void validate(String prompt, Long modelAId, Long modelBId) {
@@ -139,7 +145,7 @@ public class ArenaServiceImpl implements ArenaService {
      * 因为 batchEvaluate 在多线程下复用 quickEvaluate 的 @Transactional 会冲突
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public Map<String, Object> doOne(String prompt, Long modelAId, Long modelBId, Long userId) {
+    public Map<String, Object> doOne(String prompt, Long modelAId, Long modelBId, String category, Long userId) {
         // 1) 加载模型
         List<ModelConfig> models = modelConfigMapper.selectBatchIds(List.of(modelAId, modelBId));
         if (models.size() != 2) {
@@ -155,7 +161,7 @@ public class ArenaServiceImpl implements ArenaService {
         Question q = new Question();
         q.setContent(prompt);
         q.setType("ARENA");
-        q.setCategory("Arena");
+        q.setCategory(category == null ? "Arena" : category);
         q.setDifficulty("MEDIUM");
         q.setIsPublic(0);
         q.setCreatedBy(userId);
@@ -297,7 +303,7 @@ public class ArenaServiceImpl implements ArenaService {
 
     @Override
     @Transactional
-    public Long vote(Long evaluationId, String prompt, Long leftModelId, Long rightModelId, String winner, Long userId) {
+    public Long vote(Long evaluationId, String prompt, Long leftModelId, Long rightModelId, String winner, String category, Long userId) {
         if (!List.of("A", "B", "tie", "bad").contains(winner)) {
             throw new BusinessException(ErrorCode.PARAM_INVALID, "winner 必须是 A/B/tie/bad");
         }
@@ -308,18 +314,27 @@ public class ArenaServiceImpl implements ArenaService {
         v.setLeftModelId(leftModelId);
         v.setRightModelId(rightModelId);
         v.setWinner(winner);
+        v.setCategory(normalizeCategory(category));
         v.setCreatedAt(LocalDateTime.now());
         arenaVoteMapper.insert(v);
-        log.info("[Arena] vote id={} voter={} left={} right={} winner={}",
-                v.getId(), userId, leftModelId, rightModelId, winner);
+        log.info("[Arena] vote id={} voter={} left={} right={} winner={} category={}",
+                v.getId(), userId, leftModelId, rightModelId, winner, category);
         return v.getId();
     }
 
     @Override
     public List<Map<String, Object>> ranking() {
-        // 全量投票
-        List<ArenaVote> votes = arenaVoteMapper.selectList(
-            new LambdaQueryWrapper<ArenaVote>().orderByAsc(ArenaVote::getCreatedAt));
+        return rankingByCategory(null);
+    }
+
+    @Override
+    public List<Map<String, Object>> rankingByCategory(String category) {
+        // 全量投票(category=null/空/"all" 表示不按分类过滤)
+        LambdaQueryWrapper<ArenaVote> qw = new LambdaQueryWrapper<ArenaVote>().orderByAsc(ArenaVote::getCreatedAt);
+        if (StringUtils.hasText(category) && !"all".equalsIgnoreCase(category)) {
+            qw.eq(ArenaVote::getCategory, normalizeCategory(category));
+        }
+        List<ArenaVote> votes = arenaVoteMapper.selectList(qw);
 
         // 模型 Elo 表(只在参与过投票的模型里建)
         Map<Long, Integer> elo = new HashMap<>();

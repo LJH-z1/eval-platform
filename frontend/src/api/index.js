@@ -72,6 +72,7 @@ export async function downloadBillingCsv(evaluationId) {
 
 // ====== FR-08 export(由周文泽实现 ✅) ======
 export function getExportMeta(id) { return request.get(`/export/${id}/meta`) }
+export function getExportHtml(id) { return request.get(`/export/${id}/html-content`) }
 export async function downloadExcelUrl(id) {
   const r = await request.get(`/export/${id}/excel`, { responseType: 'blob' })
   const blob = new Blob([r], { type: 'text/csv' })
@@ -97,7 +98,9 @@ export async function downloadPdfUrl(id) {
 export function arenaQuickEval(data) { return request.post('/arena/quick-eval', data) }
 export function arenaBatchEval(data) { return request.post('/arena/batch-eval', data) }
 export function arenaVote(data) { return request.post('/arena/vote', data) }
-export function arenaRanking() { return request.get('/arena/ranking') }
+export function arenaRanking(category) {
+  return request.get('/arena/ranking', { params: category ? { category } : {} })
+}
 
 // ====== Dashboard 总览(刘家豪 ✅) ======
 export function getDashboardStats() { return request.get('/dashboard/stats') }

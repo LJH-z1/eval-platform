@@ -16,7 +16,7 @@ const routes = [
   {
     path: '/',
     component: () => import('@/views/Layout.vue'),
-    redirect: '/dashboard',
+    redirect: '/login',
     children: [
       // 首页(所有登录用户)
       { path: 'dashboard', name: 'dashboard', component: () => import('@/views/Dashboard.vue'),       meta: { title: '首页' } },
@@ -59,6 +59,8 @@ const routes = [
       { path: 'export', name: 'export', component: () => import('@/views/export/ExportMain.vue'), meta: { title: '报告导出' } }
     ]
   },
+  // 排行榜详情(从 Dashboard 总览点击进入)
+  { path: '/ranking/:category', name: 'ranking-detail', component: () => import('@/views/RankingDetail.vue'), meta: { title: '排行榜详情', public: true } },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue'), meta: { public: true } }
 ]
 
@@ -83,8 +85,8 @@ function roleAllowed(to, auth) {
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.title) document.title = `${to.meta.title} - 评测平台`
-  if (to.name === 'login' && auth.isLoggedIn) return '/'
-  if (to.name === 'register' && auth.isLoggedIn) return '/'
+  if (to.name === 'login' && auth.isLoggedIn) return '/dashboard'
+  if (to.name === 'register' && auth.isLoggedIn) return '/dashboard'
   const r = roleAllowed(to, auth)
   if (r.ok) return true
   if (r.reason === 'login') {

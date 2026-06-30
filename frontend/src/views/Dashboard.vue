@@ -6,7 +6,7 @@
  * - VISITOR 看到「访客模式」:只看 Arena / 报告导出 / 总览
  * - 其他角色看到全功能 + 可用模块卡片
  */
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { pageQuestions, pageModels, arenaRanking, getDashboardStats } from '@/api'
@@ -14,10 +14,70 @@ import { pageQuestions, pageModels, arenaRanking, getDashboardStats } from '@/ap
 const router = useRouter()
 const auth = useAuthStore()
 const stats = ref({ questions: 0, models: 0, evaluations: 0, scores: 0 })
-const leaderboard = ref([])
+
+// 能力分类(总览卡片用)— 3x3 九宫格,9 个能力,全部已上线
+const categoryDefs = [
+  { key: '',           label: '🌐 综合 Arena',         shortName: '综合',       icon: '🌐', status: 'live' },
+  { key: 'code',       label: '💻 Code Arena',         shortName: '代码',       icon: '💻', status: 'live' },
+  { key: 'writing',    label: '✍️ Writing Arena',      shortName: '写作',       icon: '✍️', status: 'live' },
+  { key: 'math',       label: '🔢 Math Arena',         shortName: '数学',       icon: '🔢', status: 'live' },
+  { key: 'vision',     label: '👁️ Vision Arena',       shortName: '视觉',       icon: '👁️', status: 'live' },
+  { key: 'webdev',     label: '🌐 WebDev Arena',       shortName: 'Web 开发',   icon: '🌐', status: 'live' },
+  { key: 'image',      label: '🎨 Text-to-Image Arena', shortName: '文生图',     icon: '🎨', status: 'live' },
+  { key: 'search',     label: '🔍 Search Arena',       shortName: '搜索',       icon: '🔍', status: 'live' },
+  { key: 'copilot',    label: '🤖 Copilot Arena',      shortName: '代码助手',   icon: '🤖', status: 'live' }
+]
+
+// 每个能力的排行快照(总览用)
+const categorySnapshots = ref({})  // { '': [...], 'code': [...], ... }
+const totalVotesByCat = ref({})    // { '': 5, 'code': 10, ... }
 
 const ROLE_RANK = { VISITOR: 1, SCORER: 2, ORGANIZER: 3, ADMIN: 4 }
 const isVisitor = computed(() => auth.role === 'VISITOR')
+
+async function loadAllSnapshots() {
+  // 并发拉 5 个 category 的排行榜(后端 rankingByCategory)
+  const entries = await Promise.all(
+    categoryDefs.map(async def => {
+      try {
+        const r = await arenaRanking(def.key || undefined)
+        return [def.key, Array.isArray(r) ? r : []]
+      } catch (e) {
+        return [def.key, []]
+      }
+    })
+  )
+  categorySnapshots.value = Object.fromEntries(entries)
+  // 每个 category 的总票数(用所有参与模型的 games 总和 / 2 估算,或单独接口;简单起见用 sum of games/2)
+  const votes = {}
+  for (const def of categoryDefs) {
+    const list = categorySnapshots.value[def.key] || []
+    const total = list.reduce((s, m) => s + (m.games || 0), 0) / 2
+    votes[def.key] = Math.round(total)
+  }
+  totalVotesByCat.value = votes
+}
+
+// 总览卡片数据
+const categoryOverviews = computed(() => {
+  return categoryDefs.map(def => {
+    const list = categorySnapshots.value[def.key] || []
+    return {
+      key: def.key,
+      label: def.label,
+      shortName: def.shortName,
+      icon: def.icon,
+      status: def.status,
+      rankings: list,
+      totalVotes: totalVotesByCat.value[def.key] || 0,
+      modelCount: list.length
+    }
+  })
+})
+
+function goRanking(category) {
+  router.push({ name: 'ranking-detail', params: { category: category || 'all' } })
+}
 
 onMounted(async () => {
   try {
@@ -36,7 +96,7 @@ onMounted(async () => {
       stats.value.models = m.total || 0
     } catch (_) {}
   }
-  try { leaderboard.value = await arenaRanking() } catch { leaderboard.value = [] }
+  await loadAllSnapshots()
 })
 
 // 全部模块定义(每个有 minRole 最低门槛)
@@ -158,57 +218,69 @@ function go(path) { router.push({ name: path }) }
       </div>
     </section>
 
-    <!-- 排行榜(参考 LMArena Text Arena) -->
+    <!-- 排行榜总览:多能力卡片 + 点击跳详情(LMArena 风格) -->
     <section class="page-wrap">
       <div class="lb-section">
-        <h2 class="lb-title">📝 Text Arena 排行榜</h2>
+        <h2 class="lb-title">🏆 排行榜总览</h2>
         <div class="lb-underline"></div>
         <div class="lb-meta">
-          最后更新: 2025年11月19日 | 总投票数: 4,278,480 | 参与模型: 258
+          基于 Arena 盲评投票 · Elo 算法 · K=32 · 点击「查看完整榜单」进入对应能力排行榜
         </div>
 
-        <div class="lb-card">
-          <table class="lb-table">
-            <thead>
-              <tr>
-                <th style="width:80px">排名</th>
-                <th style="text-align:left">模型名称</th>
-                <th style="width:110px">Elo</th>
-                <th style="width:120px">胜率</th>
-                <th style="width:160px">战绩 (W·T·L)</th>
-                <th style="width:120px">对局数</th>
-                <th style="width:140px">状态</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!leaderboard.length">
-                <td colspan="7" style="text-align:center;color:#94a3b8;padding:32px">
-                  暂无投票数据 — 前往「对比评测」开始盲评
-                </td>
-              </tr>
-              <tr v-for="r in leaderboard" :key="r.modelId" :class="`lb-row rank-${r.rank}`">
-                <td>
-                  <span class="lb-medal">
-                    <template v-if="r.rank === 1">🥇</template>
-                    <template v-else-if="r.rank === 2">🥈</template>
-                    <template v-else-if="r.rank === 3">🥉</template>
-                    <template v-else>{{ r.rank }}</template>
-                  </span>
-                </td>
-                <td style="text-align:left">
-                  <strong>{{ r.modelName }}</strong>
-                  <el-tag size="small" style="margin-left:6px">{{ r.provider }}</el-tag>
-                </td>
-                <td><span class="lb-score">{{ r.elo }}</span></td>
-                <td>{{ ((r.winRate||0) * 100).toFixed(1) }}%</td>
-                <td>{{ (r.wins||0) }}W · {{ (r.ties||0) }}T · {{ (r.losses||0) }}L</td>
-                <td>{{ (r.games||0) }} 局</td>
-                <td>
-                  <el-tag size="small" type="success" effect="light" round>活跃</el-tag>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="lb-overview-grid">
+          <div
+            v-for="ov in categoryOverviews"
+            :key="ov.key || 'all'"
+            class="ov-card"
+            :class="{ empty: ov.rankings.length === 0, soon: ov.status === 'soon' }"
+            @click="goRanking(ov.key)"
+          >
+            <div class="ov-head">
+              <span class="ov-icon">{{ ov.icon }}</span>
+              <span class="ov-name">{{ ov.shortName }}</span>
+              <el-tag v-if="ov.status === 'soon'" type="info" size="small" effect="plain" class="ov-soon-tag">即将上线</el-tag>
+            </div>
+            <template v-if="ov.rankings.length > 0">
+              <div class="ov-top">
+                <span class="ov-top-emoji">🥇</span>
+                <div class="ov-top-info">
+                  <div class="ov-top-name">{{ ov.rankings[0].modelName }}</div>
+                  <div class="ov-top-provider">{{ ov.rankings[0].provider }}</div>
+                </div>
+                <div class="ov-top-elo">{{ ov.rankings[0].elo }}</div>
+              </div>
+              <div class="ov-mid">
+                <div class="ov-mid-item"><span class="num">🥈</span> {{ ov.rankings[1]?.modelName || '—' }}</div>
+                <div class="ov-mid-item"><span class="num">🥉</span> {{ ov.rankings[2]?.modelName || '—' }}</div>
+              </div>
+              <div class="ov-foot">
+                <span>共 {{ ov.totalVotes }} 票 · {{ ov.modelCount }} 个模型</span>
+                <el-button type="primary" link size="small" @click.stop="goRanking(ov.key)">
+                  查看完整榜单 →
+                </el-button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="ov-empty">
+                <template v-if="ov.status === 'soon'">
+                  <div class="ov-empty-icon">🚧</div>
+                  <div class="ov-empty-text">该能力即将上线</div>
+                  <div class="ov-empty-hint">支持多模态/专业领域后开放</div>
+                </template>
+                <template v-else>
+                  <div class="ov-empty-icon">📭</div>
+                  <div class="ov-empty-text">该能力暂无投票数据</div>
+                  <div class="ov-empty-hint">前往 Arena 跑题时选此分类</div>
+                </template>
+              </div>
+              <div class="ov-foot">
+                <span>{{ ov.status === 'soon' ? '暂未开放投票' : '前往 Arena 跑题时选此分类' }}</span>
+                <el-button type="primary" link size="small" :disabled="ov.status === 'soon'" @click.stop="goRanking(ov.key)">
+                  查看完整榜单 →
+                </el-button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </section>
@@ -218,7 +290,7 @@ function go(path) { router.push({ name: path }) }
       <h2 class="page-title">🎯 关于 EvalArena</h2>
       <p class="page-subtitle">通过盲测对比机制,让真实用户投票决定模型排名</p>
 
-      <div class="feature-grid">
+      <div class="about-grid">
         <div class="feature-card">
           <div class="icon">⚖️</div>
           <div class="title">公正透明</div>
@@ -239,6 +311,16 @@ function go(path) { router.push({ name: path }) }
           <div class="title">API Key 安全</div>
           <div class="desc">所有凭据 AES-256 加密存储,列表仅显示掩码</div>
         </div>
+        <div class="feature-card">
+          <div class="icon">🏆</div>
+          <div class="title">多能力分榜</div>
+          <div class="desc">代码 / 写作 / 数学 / 视觉 / 搜索 等 9 个能力维度独立排名</div>
+        </div>
+        <div class="feature-card">
+          <div class="icon">⚔️</div>
+          <div class="title">一键盲评</div>
+          <div class="desc">选 2 个模型 + 1 个问题,真模型实时对决,投票后揭晓</div>
+        </div>
       </div>
     </section>
   </div>
@@ -247,6 +329,20 @@ function go(path) { router.push({ name: path }) }
 <style scoped>
 /* 局部微调(主样式在 global.css) */
 .hero { margin: -32px -24px 0; padding: 80px 24px 56px; }
+
+/* 关于模块:3x2 整齐布局 */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 16px;
+}
+@media (max-width: 1100px) {
+  .about-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .about-grid { grid-template-columns: 1fr; }
+}
 
 /* 排行榜(LMArena 风格) */
 .lb-section {
@@ -274,6 +370,183 @@ function go(path) { router.push({ name: path }) }
   color: var(--text-soft);
   font-size: 13px;
   margin-bottom: 28px;
+}
+
+/* 能力分类 Tab */
+.lb-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.lb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: all .2s;
+}
+.lb-tab:hover {
+  border-color: #6366f1;
+  color: #4f46e5;
+  transform: translateY(-1px);
+}
+.lb-tab.active {
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(99,102,241,.25);
+}
+.lb-tab-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* 总览卡片网格(LMArena 风格)— 3 列整齐布局 */
+.lb-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 16px;
+}
+.ov-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 220px;
+}
+.ov-card:hover {
+  border-color: #6366f1;
+  box-shadow: 0 8px 20px rgba(99,102,241,.15);
+  transform: translateY(-2px);
+}
+.ov-card.empty { opacity: 0.92; }
+.ov-card.soon {
+  background: linear-gradient(135deg, #fafafa 0%, #f1f5f9 100%);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+.ov-card.soon:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  border-color: #cbd5e1;
+}
+.ov-soon-tag {
+  margin-left: auto;
+  background: #fff;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+}
+
+.ov-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ov-icon { font-size: 22px; }
+.ov-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ov-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(90deg, #fef9c3 0%, #fefce8 100%);
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+.ov-top-emoji { font-size: 22px; }
+.ov-top-info { flex: 1; min-width: 0; }
+.ov-top-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-top-provider {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.ov-top-elo {
+  font-size: 18px;
+  font-weight: 800;
+  color: #4f46e5;
+  font-variant-numeric: tabular-nums;
+}
+
+.ov-mid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.ov-mid-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.ov-mid-item .num {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+}
+
+.ov-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #94a3b8;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.ov-empty {
+  text-align: center;
+  padding: 18px 0;
+  color: #94a3b8;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.ov-empty-icon { font-size: 36px; line-height: 1; }
+.ov-empty-text { font-size: 13px; font-weight: 600; margin-top: 6px; color: #64748b; }
+.ov-empty-hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+/* 响应式:窄屏 2 列,极窄 1 列 */
+@media (max-width: 1100px) {
+  .lb-overview-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 700px) {
+  .lb-overview-grid { grid-template-columns: 1fr; }
 }
 
 .lb-card {

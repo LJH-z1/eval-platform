@@ -214,8 +214,8 @@ public class QuestionServiceImpl implements QuestionService {
     private void applyRequest(Question q, QuestionRequest req, Long createdBy) {
         q.setContent(req.getContent().trim());
         q.setCategory(StringUtils.hasText(req.getCategory()) ? req.getCategory().trim() : null);
-        q.setDifficulty(StringUtils.hasText(req.getDifficulty()) ? req.getDifficulty() : "中等");
-        q.setType(StringUtils.hasText(req.getType()) ? req.getType() : "事实");
+        q.setDifficulty(StringUtils.hasText(req.getDifficulty()) ? req.getDifficulty() : null);
+        q.setType(StringUtils.hasText(req.getType()) ? req.getType() : null);
         q.setExpectedAnswer(StringUtils.hasText(req.getExpectedAnswer())
                 ? req.getExpectedAnswer().trim() : null);
         q.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()) ? 1 : 0);

@@ -60,6 +60,18 @@ public class ExportController {
         }
     }
 
+    @GetMapping("/{evaluationId}/html-content")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "获取 HTML 报告内容(JSON 包装,用于页面内在线预览)")
+    public Result<String> htmlContent(@PathVariable Long evaluationId) {
+        try {
+            ByteArrayOutputStream data = reportExportService.exportHtml(evaluationId);
+            return Result.success(data.toString(StandardCharsets.UTF_8));
+        } catch (BusinessException e) {
+            return Result.error(e.getCode(), e.getMessage());
+        }
+    }
+
     private ResponseEntity<byte[]> download(ByteArrayOutputStream data, String filename, String contentType) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(contentType));

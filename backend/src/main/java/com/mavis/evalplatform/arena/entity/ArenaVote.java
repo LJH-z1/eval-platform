@@ -29,5 +29,8 @@ public class ArenaVote implements Serializable {
     /** A / B / tie / bad */
     private String winner;
 
+    /** 能力分类:text / code / writing / math / vision / general 等 */
+    private String category;
+
     private LocalDateTime createdAt;
 }

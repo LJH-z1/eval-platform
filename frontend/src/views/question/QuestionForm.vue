@@ -24,8 +24,8 @@ const form = reactive({
   id: null,
   content: '',
   category: '',
-  difficulty: '中等',
-  type: '事实',
+  difficulty: '',
+  type: '',
   expectedAnswer: '',
   isPublic: false
 })
@@ -40,9 +40,8 @@ const rules = {
   content: [
     { required: true, message: '问题内容不能为空', trigger: 'blur' },
     { min: 1, max: 4000, message: '长度需在 1-4000 字', trigger: 'blur' }
-  ],
-  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
-  type: [{ required: true, message: '请选择题型', trigger: 'change' }]
+  ]
+  // 分类/难度/题型 — 改为非必填,允许空(列表显示 —)
 }
 
 async function loadIfEdit() {
@@ -53,9 +52,10 @@ async function loadIfEdit() {
     Object.assign(form, {
       id: data.id,
       content: data.content || '',
-      category: data.category || '',
-      difficulty: data.difficulty || '中等',
-      type: data.type || '事实',
+      // 分类/难度/题型 编辑时不预填(强制显示 —),用户不选则保存时清空
+      category: '',
+      difficulty: '',
+      type: '',
       expectedAnswer: data.expectedAnswer || '',
       isPublic: !!data.isPublic
     })
@@ -74,8 +74,10 @@ async function onSubmit() {
     submitting.value = true
     try {
       const payload = { ...form }
-      // 清理空字符串
-      if (!payload.category) payload.category = null
+      // 清理空字符串 → null(列表显示 —)
+      if (!payload.category)   payload.category = null
+      if (!payload.difficulty) payload.difficulty = null
+      if (!payload.type)       payload.type = null
       if (!payload.expectedAnswer) payload.expectedAnswer = null
       if (isEdit.value) {
         await updateQuestion(questionId.value, payload)
@@ -118,21 +120,21 @@ onMounted(loadIfEdit)
 
         <el-form-item label="学科分类" prop="category">
           <el-select v-model="form.category" clearable allow-create filterable
-                     placeholder="选择或输入新分类" style="width: 100%">
+                     placeholder="—" style="width: 100%">
             <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
 
         <el-form-item label="难度" prop="difficulty">
-          <el-radio-group v-model="form.difficulty">
-            <el-radio v-for="d in difficulties" :key="d" :value="d">{{ d }}</el-radio>
-          </el-radio-group>
+          <el-select v-model="form.difficulty" clearable placeholder="—" style="width: 100%">
+            <el-option v-for="d in difficulties" :key="d" :label="d" :value="d" />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="题型" prop="type">
-          <el-radio-group v-model="form.type">
-            <el-radio v-for="t in types" :key="t" :value="t">{{ t }}</el-radio>
-          </el-radio-group>
+          <el-select v-model="form.type" clearable placeholder="—" style="width: 100%">
+            <el-option v-for="t in types" :key="t" :label="t" :value="t" />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="期望答案">
@@ -168,8 +170,11 @@ onMounted(loadIfEdit)
       <h3 style="margin-top: 0">{{ form.content || '(问题内容)' }}</h3>
       <el-space>
         <el-tag v-if="form.category" type="info">{{ form.category }}</el-tag>
-        <el-tag>{{ form.difficulty }}</el-tag>
-        <el-tag type="success">{{ form.type }}</el-tag>
+        <span v-else style="color:#909399">分类 —</span>
+        <el-tag v-if="form.difficulty">{{ form.difficulty }}</el-tag>
+        <span v-else style="color:#909399">难度 —</span>
+        <el-tag v-if="form.type" type="success">{{ form.type }}</el-tag>
+        <span v-else style="color:#909399">题型 —</span>
         <el-tag v-if="form.isPublic" type="warning">公共题库</el-tag>
       </el-space>
       <el-divider />

@@ -143,12 +143,17 @@ onMounted(load)
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="100" />
+        <el-table-column label="分类" width="100">
+          <template #default="{ row }">
+            <span style="color: #909399">{{ row.category || '—' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="难度" width="80">
           <template #default="{ row }">
             <el-tag v-if="row.difficulty" :type="difficultyTagType[row.difficulty] || 'info'" size="small">
               {{ row.difficulty }}
             </el-tag>
+            <span v-else style="color: #909399">—</span>
           </template>
         </el-table-column>
         <el-table-column label="题型" width="80">
@@ -156,6 +161,7 @@ onMounted(load)
             <el-tag v-if="row.type" :type="typeTagType[row.type] || 'info'" size="small">
               {{ row.type }}
             </el-tag>
+            <span v-else style="color: #909399">—</span>
           </template>
         </el-table-column>
         <el-table-column label="期望答案" min-width="200" show-overflow-tooltip>

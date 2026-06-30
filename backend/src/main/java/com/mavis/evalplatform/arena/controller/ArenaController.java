@@ -29,13 +29,14 @@ public class ArenaController {
     /** 快速评测 1 题 2 模型(同步) */
     @PostMapping("/quick-eval")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Arena 快速评测(1 题 2 模型,同步返回)")
+    @Operation(summary = "Arena 快速评测(1 题 2 模型,同步返回,body 含 category)")
     public Result<Map<String, Object>> quickEval(@RequestBody Map<String, Object> body,
                                                  @AuthenticationPrincipal AuthenticatedUser user) {
         String prompt = (String) body.get("prompt");
         Long a = toLong(body.get("modelAId"));
         Long b = toLong(body.get("modelBId"));
-        return Result.success(arenaService.quickEvaluate(prompt, a, b, user.id()));
+        String category = (String) body.get("category");
+        return Result.success(arenaService.quickEvaluate(prompt, a, b, category, user.id()));
     }
 
     /** 批量评测 N 题 2 模型(同步,内部并发跑) */
@@ -48,13 +49,14 @@ public class ArenaController {
         java.util.List<String> prompts = (java.util.List<String>) body.get("prompts");
         Long a = toLong(body.get("modelAId"));
         Long b = toLong(body.get("modelBId"));
-        return Result.success(arenaService.batchEvaluate(prompts, a, b, user.id()));
+        String category = (String) body.get("category");
+        return Result.success(arenaService.batchEvaluate(prompts, a, b, category, user.id()));
     }
 
     /** 投票 */
     @PostMapping("/vote")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "投票(A/B/tie/bad)")
+    @Operation(summary = "投票(A/B/tie/bad,带 category)")
     public Result<Long> vote(@RequestBody Map<String, Object> body,
                              @AuthenticationPrincipal AuthenticatedUser user) {
         Long voteId = arenaService.vote(
@@ -63,6 +65,7 @@ public class ArenaController {
                 toLong(body.get("leftModelId")),
                 toLong(body.get("rightModelId")),
                 (String) body.get("winner"),
+                (String) body.get("category"),
                 user.id());
         return Result.success(voteId);
     }
@@ -70,9 +73,10 @@ public class ArenaController {
     /** Elo 排行榜 */
     @GetMapping("/ranking")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Elo 排行榜")
-    public Result<List<Map<String, Object>>> ranking() {
-        return Result.success(arenaService.ranking());
+    @Operation(summary = "Elo 排行榜(可按能力分类 ?category=text/vision/code 等)")
+    public Result<List<Map<String, Object>>> ranking(
+            @RequestParam(required = false) String category) {
+        return Result.success(arenaService.rankingByCategory(category));
     }
 
     private static Long toLong(Object o) {
